@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
@@ -18,7 +20,7 @@ def test_no_business_tables_or_revisions():
     assert list(scripts.walk_revisions()) == []
 
 
-def test_offline_empty_migration_and_company_rejection(env_root):
+def test_offline_empty_migration_and_company_no_fallback(env_root):
     process = {
         k: v
         for k, v in os.environ.items()
@@ -47,5 +49,15 @@ def test_offline_empty_migration_and_company_rejection(env_root):
         command, env=process, cwd=ROOT, capture_output=True, text=True, timeout=10
     )
     assert result.returncode != 0
-    assert "outside the approved" in result.stderr
+    assert "company migrations are blocked" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("offline", [False, True], ids=["online", "offline-sql"])
+def test_complete_company_config_rejected_by_alembic(company_env, monkeypatch, offline):
+    monkeypatch.setenv("APP_ENV", "company")
+    monkeypatch.setenv("APP_ENV_FILE", str(company_env))
+    for name in ("DATABASE_URL", "MIGRATION_DATABASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(SystemExit, match="company migrations are blocked"):
+        command.upgrade(Config(str(ROOT / "alembic.ini")), "head", sql=offline)

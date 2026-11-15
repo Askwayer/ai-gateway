@@ -7,9 +7,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import ConfigurationError, MigrationConfig, load_migration_config
-
-EXPECTED_IDENTITY = ("ai_gateway_test", "gateway_test_migrator")
+from app.core.config import ConfigurationError
+from app.db.config import MigrationConfig, load_migration_config
 
 
 async def run_online_migration(
@@ -17,7 +16,6 @@ async def run_online_migration(
     *,
     config_loader: Callable[[], MigrationConfig] = load_migration_config,
     engine_factory: Callable[..., AsyncEngine] = create_async_engine,
-    expected_identity: tuple[str, str] = EXPECTED_IDENTITY,
 ) -> None:
     settings = config_loader()
     engine = engine_factory(
@@ -31,9 +29,9 @@ async def run_online_migration(
         async with engine.connect() as connection:
             # Catalog check after actual login protects against a misleading connection path.
             row = (await connection.execute(text("SELECT current_database(), current_user"))).one()
-            if (row[0], row[1]) != expected_identity:
+            if (row[0], row[1]) != settings.expected_identity:
                 raise ConfigurationError(
-                    "actual migration connection is not the approved test identity"
+                    "actual migration connection is not the configured migration identity"
                 )
             # End the read-only identity check transaction before Alembic controls its own.
             await connection.rollback()

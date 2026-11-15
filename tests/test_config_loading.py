@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from app.core.config import ConfigurationError, load_config, load_migration_config
+from app.core.config import ConfigurationError, load_config
+from app.db.config import load_migration_config
 
 
 def test_default_development_ignores_company_file(env_root):
@@ -37,14 +38,6 @@ def test_complete_company_config_can_validate_without_connecting(env_root):
     (env_root / ".env.company").write_text(company)
     loaded = load_config(root=env_root, environ={"APP_ENV": "company"})
     assert loaded.settings.ALLOWED_MODELS == ("Qwen3-VL-8B-Instruct",)
-    with pytest.raises(ConfigurationError, match="company must"):
-        load_config(
-            root=env_root,
-            environ={
-                "APP_ENV": "company",
-                "DATABASE_URL": "postgresql+asyncpg://gateway_test_app:unit-only@127.0.0.1:13432/ai_gateway_test",
-            },
-        )
 
 
 @pytest.mark.parametrize(
@@ -76,9 +69,9 @@ def test_environment_overrides_are_explicit_and_secrets_safe(env_root):
     assert "DATABASE_URL" in str(caught.value)
 
 
-def test_selected_authenticated_upstream_requires_key(env_root):
-    with pytest.raises(ConfigurationError, match="UPSTREAM_API_KEY is required"):
-        load_config(root=env_root, environ={"UPSTREAM_API_KEY": ""})
+def test_generic_upstream_allows_empty_key(env_root):
+    loaded = load_config(root=env_root, environ={"UPSTREAM_API_KEY": ""})
+    assert loaded.settings.UPSTREAM_API_KEY.get_secret_value() == ""
 
 
 def test_placeholder_values_fail_without_echoing_value(env_root):
@@ -131,32 +124,54 @@ def test_selection_conflicts_fail(env_root):
         load_config(root=env_root, env_file=".env", environ={"APP_ENV_FILE": ".env.other"})
 
 
-def test_development_rejects_production_and_company_upstream(env_root):
-    with pytest.raises(ConfigurationError, match="test runtime"):
-        load_config(
-            root=env_root,
-            environ={
-                "DATABASE_URL": "postgresql+asyncpg://gateway_app:unit-only@127.0.0.1:13432/ai_gateway"
-            },
-        )
-    with pytest.raises(ConfigurationError, match="DeepSeek"):
-        load_config(root=env_root, environ={"UPSTREAM_BASE_URL": "http://172.31.34.204:5330/v1"})
+def test_runtime_accepts_custom_endpoint_database_and_role(env_root):
+    loaded = load_config(
+        root=env_root,
+        environ={
+            "DATABASE_URL": "postgresql+asyncpg://custom_app:unit-only@db.internal:5432/custom_db",
+            "UPSTREAM_BASE_URL": "https://llm.example.org/v1",
+        },
+    )
+    assert loaded.settings.UPSTREAM_BASE_URL == "https://llm.example.org/v1"
 
 
-def test_migration_uses_separate_credentials_and_test_identity(env_root):
+@pytest.mark.parametrize(
+    "field",
+    [
+        "TEST_DATABASE_URL",
+        "TEST_MIGRATION_DATABASE_URL",
+        "PRODUCTION_DATABASE_URL",
+        "PRODUCTION_MIGRATION_DATABASE_URL",
+        "AI_FAST_MODEL",
+        "AI_FAST_BASE_URL",
+        "AI_FAST_API_KEY",
+    ],
+)
+def test_obsolete_aliases_rejected(env_root, field):
+    with (env_root / ".env").open("a") as stream:
+        stream.write(field + "=unused\n")
+    with pytest.raises(ConfigurationError, match="unknown field"):
+        load_config(root=env_root, environ={})
+
+
+def test_migration_uses_separate_credentials_on_same_target(env_root):
     loaded = load_migration_config(root=env_root, environ={})
-    assert "gateway_test_migrator" in loaded.url.get_secret_value()
+    assert loaded.expected_identity == ("ai_gateway_test", "gateway_test_migrator")
     assert "unit-only" not in repr(loaded)
     for value in (
         "postgresql+asyncpg://gateway_test_app:unit-only@127.0.0.1:13432/ai_gateway_test",
-        "postgresql+asyncpg://gateway_migrator:unit-only@127.0.0.1:13432/ai_gateway",
-        "postgresql+asyncpg://gateway_test_migrator:unit-only@127.0.0.2:13432/ai_gateway_test",
+        "postgresql+asyncpg://%67ateway_test_app:unit-only@127.0.0.1:13432/ai_gateway_test",
+        "postgresql+asyncpg://owner:unit-only@127.0.0.1:13432/other_db",
+        "postgresql+asyncpg://owner:unit-only@127.0.0.2:13432/ai_gateway_test",
+        "postgresql+asyncpg://owner:unit-only@127.0.0.1:5432/ai_gateway_test",
     ):
         with pytest.raises(ConfigurationError):
             load_migration_config(root=env_root, environ={"MIGRATION_DATABASE_URL": value})
-    (env_root / ".env.company").write_text("")
-    with pytest.raises(ConfigurationError, match="outside"):
-        load_migration_config(root=env_root, environ={"APP_ENV": "company"})
+
+
+def test_complete_company_migration_config_is_blocked(company_env):
+    with pytest.raises(ConfigurationError, match="company migrations are blocked"):
+        load_migration_config(environment="company", env_file=company_env, environ={})
 
 
 def test_relative_ca_uses_selected_file_directory(env_root):

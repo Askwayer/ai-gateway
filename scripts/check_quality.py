@@ -15,6 +15,7 @@ def main() -> int:
         "tests",
         "scripts/check_quality.py",
         "scripts/check_repository.py",
+        "scripts/check_development.py",
     ]
     commands = [
         ["scripts/check_repository.py"],

@@ -41,3 +41,16 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(socket.socket, "connect", forbidden)
     monkeypatch.setattr(socket.socket, "connect_ex", forbidden)
+
+
+@pytest.fixture
+def company_env(env_root: Path) -> Path:
+    """Complete dummy company settings; never points to the actual company service."""
+    path = env_root / ".env.company"
+    content = (env_root / ".env").read_text()
+    content = content.replace("gateway_test_app", "company_app")
+    content = content.replace("gateway_test_migrator", "company_owner")
+    content = content.replace("ai_gateway_test", "company_db")
+    content = content.replace("https://api.deepseek.com", "https://company.example/v1")
+    path.write_text("APP_ENV=company\n" + content)
+    return path

@@ -6,10 +6,28 @@ from typing import Any
 import pytest
 from pydantic import SecretStr
 
-from app.core.config import ConfigurationError, MigrationConfig
+from app.core.config import ConfigurationError
+from app.db.config import MigrationConfig, load_migration_config
 from app.db.migration_guard import run_online_migration
 
-APPROVED = ("ai_gateway_test", "gateway_test_migrator")
+APPROVED = ("custom_db", "custom_owner")
+
+
+def test_company_is_blocked_before_engine_creation(company_env):
+    def forbidden_engine(*args, **kwargs):
+        pytest.fail("company migration must not create an engine")
+
+    async def scenario():
+        with pytest.raises(ConfigurationError, match="company migrations are blocked"):
+            await run_online_migration(
+                lambda connection: pytest.fail("must not configure migrations"),
+                config_loader=lambda: load_migration_config(
+                    environment="company", env_file=company_env, environ={}
+                ),
+                engine_factory=forbidden_engine,
+            )
+
+    asyncio.run(scenario())
 
 
 class FakeResult:
@@ -63,7 +81,7 @@ def _migration_config() -> MigrationConfig:
     return MigrationConfig(
         environment="test",
         env_file=Path(".env"),
-        url=SecretStr("postgresql+asyncpg://gateway_test_migrator:unit-only@127.0.0.1:1/test"),
+        url=SecretStr("postgresql+asyncpg://custom_owner:unit-only@127.0.0.1:1/custom_db"),
     )
 
 
@@ -76,11 +94,12 @@ def _fixture(
     return connection, engine, configured
 
 
-def test_identity_mismatch_is_rejected_and_releases_connection() -> None:
-    connection, engine, configured = _fixture(("ai_gateway_test", "gateway_test_app"))
+@pytest.mark.parametrize("identity", [("custom_db", "custom_app"), ("wrong_db", "custom_owner")])
+def test_identity_mismatch_is_rejected_and_releases_connection(identity) -> None:
+    connection, engine, configured = _fixture(identity)
 
     async def scenario() -> None:
-        with pytest.raises(ConfigurationError, match="approved test identity"):
+        with pytest.raises(ConfigurationError, match="configured migration identity"):
             await run_online_migration(
                 lambda value: configured.append(value),
                 config_loader=_migration_config,

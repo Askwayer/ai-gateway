@@ -6,7 +6,7 @@ import unicodedata
 from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Literal, Self
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
@@ -68,7 +68,8 @@ def database_parts(value: str) -> tuple[str, int, str, str]:
             for key, val in params
         ):
             raise ValueError
-        return url.hostname, port, url.path[1:], url.username
+        # SQLAlchemy decodes usernames before connecting; compare the actual role name.
+        return url.hostname, port, url.path[1:], unquote(url.username)
     except (ValueError, TypeError):
         raise ValueError("invalid PostgreSQL connection configuration") from None
 

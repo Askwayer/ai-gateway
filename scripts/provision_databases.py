@@ -190,10 +190,6 @@ async def main():
         config = {
             'DATABASE_URL': urls['gateway_test_app'],
             'MIGRATION_DATABASE_URL': urls['gateway_test_migrator'],
-            'TEST_DATABASE_URL': urls['gateway_test_app'],
-            'TEST_MIGRATION_DATABASE_URL': urls['gateway_test_migrator'],
-            'PRODUCTION_DATABASE_URL': urls['gateway_app'],
-            'PRODUCTION_MIGRATION_DATABASE_URL': urls['gateway_migrator'],
         }
         kept = [line for line in original.splitlines() if line.partition('=')[0].strip() not in config]
         content = '\n'.join(kept).rstrip()+'\n\n# Local development defaults to the isolated TEST database.\n'

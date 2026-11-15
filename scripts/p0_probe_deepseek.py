@@ -24,10 +24,10 @@ def load_settings():
         key, sep, value = line.strip().partition('=')
         if sep and not key.startswith('#'):
             values[key.strip()] = value.strip().strip('\"\'')
-    for key in ('AI_FAST_API_KEY', 'UPSTREAM_API_KEY', 'AI_FAST_MODEL', 'AI_FAST_BASE_URL'):
+    for key in ('UPSTREAM_API_KEY', 'ALLOWED_MODELS', 'UPSTREAM_BASE_URL'):
         if os.environ.get(key):
             values[key] = os.environ[key]
-    key_name = 'UPSTREAM_API_KEY' if values.get('UPSTREAM_API_KEY') else 'AI_FAST_API_KEY'
+    key_name = 'UPSTREAM_API_KEY'
     secret = values.get(key_name, '')
     if not secret or any(c.isspace() for c in secret):
         raise ValueError('Missing or malformed credential')
@@ -120,9 +120,9 @@ async def main():
     settings, key_name, secret = load_settings()
     spec_path = Path('p0/upstream/deepseek-probe-cases.json')
     spec = json.loads(spec_path.read_text())
-    if spec['base_url'] != 'https://api.deepseek.com' or settings.get('AI_FAST_BASE_URL') != spec['base_url']:
+    if spec['base_url'] != 'https://api.deepseek.com' or settings.get('UPSTREAM_BASE_URL') != spec['base_url']:
         raise ValueError('Origin mismatch')
-    if settings.get('AI_FAST_MODEL') != spec['requested_model']:
+    if json.loads(settings.get('ALLOWED_MODELS', '[]')) != [spec['requested_model']]:
         raise ValueError('Model mismatch')
     if len(spec['cases']) != 3:
         raise ValueError('Expected three bounded cases')

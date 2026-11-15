@@ -1,12 +1,13 @@
-"""Empty async migration scaffold. Only the isolated test database is permitted."""
+"""Empty async migration scaffold. Validates the selected database and dedicated migration identity."""
 
 import asyncio
 
 from alembic import context
 from sqlalchemy.engine import Connection
 
-from app.core.config import ConfigurationError, load_migration_config
+from app.core.config import ConfigurationError
 from app.db.base import Base
+from app.db.config import load_migration_config
 from app.db.migration_guard import run_online_migration
 
 
