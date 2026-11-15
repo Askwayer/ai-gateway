@@ -1,0 +1,776 @@
+{
+  "schema_version": 1,
+  "status": "candidate_only_not_frozen",
+  "milestone_signoff": false,
+  "design": "docs/AI-Gateway-项目开发详细设计书-v1.6.md",
+  "design_sha256": "e2175f0dbe0fd2a946b875b9f3a5f2f22cab656a31863a61a9d3a069350b2639",
+  "selection_sha256": "69c65002ea1e27f9feacd82761846b960530a107155b909c889c0f5e435aa20d",
+  "production_config_loader": "P1 local model/CLI implemented in app.core.config; company required inputs and deployment remain pending",
+  "default_environment": "development",
+  "entries_scope": "company_target_candidates",
+  "development_spec_sha256": "854c3a699572530c5338ccf1053f15a22995e7a77aa60f6e964fb79d82879ece",
+  "development_overrides": {
+    "UPSTREAM_BASE_URL": "https://api.deepseek.com",
+    "ALLOWED_MODELS": [
+      "deepseek-v4-flash"
+    ],
+    "INFERENCE_PROBE_MODEL": "deepseek-v4-flash",
+    "UPSTREAM_API_KEY": {
+      "source": ".env:UPSTREAM_API_KEY"
+    },
+    "DATABASE_URL": {
+      "source": ".env:DATABASE_URL"
+    },
+    "ADMIN_API_KEY": {
+      "source": ".env:ADMIN_API_KEY"
+    },
+    "UPSTREAM_HEALTH_PATH": "/models",
+    "TRUSTED_PROXY_CIDRS": []
+  },
+  "entries": [
+    {
+      "name": "DATABASE_URL",
+      "type": "address",
+      "candidate": {
+        "development": ".env:DATABASE_URL",
+        "company": ".env.company:DATABASE_URL"
+      },
+      "status": "本地输入已核对",
+      "basis": "docs/P0-数据库初始化记录-20261115.json；默认开发使用测试库",
+      "design_note": "必填秘密；首版直连 PostgreSQL，不经 PgBouncer 事务池",
+      "secret_source_only": true
+    },
+    {
+      "name": "ADMIN_API_KEY",
+      "type": "secret",
+      "candidate": {
+        "development": ".env:ADMIN_API_KEY",
+        "company": ".env.company:ADMIN_API_KEY"
+      },
+      "status": "本地输入已核对",
+      "basis": ".tools/p0-local-inputs-20261115.json；仅记录生成方法和来源，不记录值或哈希",
+      "design_note": "不与课题/上游 Key 共用；变更需重启",
+      "secret_source_only": true
+    },
+    {
+      "name": "UPSTREAM_BASE_URL",
+      "type": "address",
+      "candidate": "http://172.31.34.204:5330/v1",
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "禁止客户端覆盖与重定向",
+      "secret_source_only": false
+    },
+    {
+      "name": "UPSTREAM_API_KEY",
+      "type": "secret",
+      "candidate": {
+        "development": ".env:UPSTREAM_API_KEY",
+        "company": ".env.company:UPSTREAM_API_KEY"
+      },
+      "status": "本地输入已核对",
+      "basis": "用户提供，已存本地；凭证存在不等于上游鉴权成功",
+      "design_note": "上游允许无认证时可空",
+      "secret_source_only": true
+    },
+    {
+      "name": "UPSTREAM_CA_BUNDLE",
+      "type": "file",
+      "candidate": "system_trust_store",
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结；当前候选为 HTTP，此项保留系统信任库约定；如改 HTTPS 重新确认 CA",
+      "design_note": "内部 CA 可配置本地文件；不得默认禁用 TLS 校验",
+      "secret_source_only": false
+    },
+    {
+      "name": "ALLOWED_MODELS",
+      "type": "model_text",
+      "candidate": [
+        "Qwen3-VL-8B-Instruct"
+      ],
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "P0 实测冻结",
+      "secret_source_only": false
+    },
+    {
+      "name": "UPSTREAM_STREAM_USAGE_MODE",
+      "type": "enum",
+      "candidate": "include_usage",
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "include_usage 或 unsupported，P0 实测",
+      "secret_source_only": false
+    },
+    {
+      "name": "GLOBAL_MAX_CONCURRENCY",
+      "type": "positive_int",
+      "candidate": 16,
+      "status": "待目标环境验证",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "业务与推理探测共享总上限；仅重启生效",
+      "secret_source_only": false
+    },
+    {
+      "name": "DEFAULT_PROJECT_MAX_CONCURRENCY",
+      "type": "positive_int",
+      "candidate": 4,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "仅新建课题默认值；已有记录通过 PATCH 修改",
+      "secret_source_only": false
+    },
+    {
+      "name": "DEFAULT_KEY_MAX_CONCURRENCY",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "仅新建 Key 默认值",
+      "secret_source_only": false
+    },
+    {
+      "name": "CONCURRENCY_RETRY_AFTER",
+      "type": "positive_int",
+      "candidate": 1,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "入口/并发429建议等待，不保证下一次可用",
+      "secret_source_only": false
+    },
+    {
+      "name": "SERVICE_UNAVAILABLE_RETRY_AFTER",
+      "type": "positive_int",
+      "candidate": 1,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "网关可构造503统一Retry-After；上游错误不套用",
+      "secret_source_only": false
+    },
+    {
+      "name": "HTTP_CONNECT_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 5.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "上游连接建立",
+      "secret_source_only": false
+    },
+    {
+      "name": "HTTP_POOL_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 2.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "取上游连接",
+      "secret_source_only": false
+    },
+    {
+      "name": "HTTP_WRITE_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 10.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "发送请求体",
+      "secret_source_only": false
+    },
+    {
+      "name": "HTTP_READ_IDLE_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 60.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "相邻读取空闲时间",
+      "secret_source_only": false
+    },
+    {
+      "name": "REQUEST_TOTAL_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 300.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "业务总时限；不含随后清理",
+      "secret_source_only": false
+    },
+    {
+      "name": "CLEANUP_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 5.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "统一有界清理截止时间",
+      "secret_source_only": false
+    },
+    {
+      "name": "UPSTREAM_CLOSE_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 0.5,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "属于清理总预算",
+      "secret_source_only": false
+    },
+    {
+      "name": "SETTLEMENT_MAX_ATTEMPTS",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "总尝试次数，含首次",
+      "secret_source_only": false
+    },
+    {
+      "name": "SETTLEMENT_ATTEMPT_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 1.5,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "含取连接、事务、回滚；属于清理预算",
+      "secret_source_only": false
+    },
+    {
+      "name": "SETTLEMENT_RETRY_BACKOFF",
+      "type": "nonnegative_number",
+      "candidate": 0.1,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "两次尝试之间仅一次",
+      "secret_source_only": false
+    },
+    {
+      "name": "DB_OPERATION_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 2.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "普通鉴权/登记操作；结算另有更短时限",
+      "secret_source_only": false
+    },
+    {
+      "name": "DB_QUERY_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 3.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "管理聚合操作硬截止；不代替§15.2统计查询性能目标",
+      "secret_source_only": false
+    },
+    {
+      "name": "DB_POOL_SIZE",
+      "type": "positive_int",
+      "candidate": 16,
+      "status": "待目标环境验证",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "常驻池上限；实际连接按需建立",
+      "secret_source_only": false
+    },
+    {
+      "name": "DB_MAX_OVERFLOW",
+      "type": "nonnegative_int",
+      "candidate": 20,
+      "status": "待目标环境验证",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "总连接上限由DB_POOL_SIZE加本项计算；需与DB预算一致",
+      "secret_source_only": false
+    },
+    {
+      "name": "AUTH_DB_MAX_INFLIGHT",
+      "type": "positive_int",
+      "candidate": 16,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "鉴权及拒绝记录DB通道；无等待，满则503并带Retry-After",
+      "secret_source_only": false
+    },
+    {
+      "name": "ADMIN_DB_MAX_INFLIGHT",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "管理查询/写入通道；满则 503 database_unavailable",
+      "secret_source_only": false
+    },
+    {
+      "name": "BACKGROUND_DB_MAX_INFLIGHT",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "健康/恢复等后台 DB 操作；就绪探针读取缓存",
+      "secret_source_only": false
+    },
+    {
+      "name": "DB_READY_CHECK_INTERVAL",
+      "type": "positive_number",
+      "candidate": 5.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "后台检查 DB 状态，公开 ready 不每次查库",
+      "secret_source_only": false
+    },
+    {
+      "name": "DB_READY_STALE_AFTER",
+      "type": "positive_number",
+      "candidate": 15.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "缓存过期 ready=503",
+      "secret_source_only": false
+    },
+    {
+      "name": "HTTP_MAX_CONNECTIONS",
+      "type": "positive_int",
+      "candidate": 32,
+      "status": "待目标环境验证",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "共享客户端连接池含业务与可达性探测余量",
+      "secret_source_only": false
+    },
+    {
+      "name": "REQUEST_BODY_MAX_BYTES",
+      "type": "positive_int",
+      "candidate": 1048576,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "1 MiB",
+      "secret_source_only": false
+    },
+    {
+      "name": "NONSTREAM_RESPONSE_MAX_BYTES",
+      "type": "positive_int",
+      "candidate": 16777216,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "16 MiB；也限制上游错误体",
+      "secret_source_only": false
+    },
+    {
+      "name": "SSE_EVENT_PARSE_MAX_BYTES",
+      "type": "positive_int",
+      "candidate": 262144,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "256 KiB；超限标 invalid",
+      "secret_source_only": false
+    },
+    {
+      "name": "APP_DRAIN_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 20.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "收到首次停止信号开始计时，到期取消在途请求",
+      "secret_source_only": false
+    },
+    {
+      "name": "UVICORN_GRACEFUL_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 30.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "Uvicorn 等待任务上限，晚于排空+清理截止",
+      "secret_source_only": false
+    },
+    {
+      "name": "BACKGROUND_SHUTDOWN_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 3.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "关闭后台任务和共享资源的整体预算",
+      "secret_source_only": false
+    },
+    {
+      "name": "HOST_STOP_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 40.0,
+      "status": "待目标环境验证",
+      "basis": "需在 systemd/实际进程管理器设置并现场取证；环境变量本身不能控制宿主",
+      "design_note": "宿主停止配置，不是 FastAPI 自动应用的值",
+      "secret_source_only": false
+    },
+    {
+      "name": "SHUTDOWN_SAFETY_MARGIN",
+      "type": "positive_number",
+      "candidate": 5.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "应用到Uvicorn、Uvicorn到宿主各自至少留出的余量",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_REACHABILITY_ENABLED",
+      "type": "boolean",
+      "candidate": true,
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "可达性检测开关；生产关闭需记录范围变更",
+      "secret_source_only": false
+    },
+    {
+      "name": "UPSTREAM_HEALTH_PATH",
+      "type": "address",
+      "candidate": "/models",
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替；候选拼接为 http://172.31.34.204:5330/v1/models，需保留 /v1 前缀",
+      "design_note": "可达性启用时必填，禁用时可空；非空时必须为同一上游的合法相对路径",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_GATE_ENABLED",
+      "type": "boolean",
+      "candidate": true,
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "依赖可达性检测；检测关闭时必须为 false",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_INTERVAL",
+      "type": "positive_number",
+      "candidate": 30.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "可达性轮次间隔，不重叠",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 3.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "一次可达性探测总时限",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_FAILURE_THRESHOLD",
+      "type": "positive_int",
+      "candidate": 3,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "连续失败判 unhealthy",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_RECOVERY_THRESHOLD",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "连续成功恢复 healthy",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_STALE_AFTER",
+      "type": "positive_number",
+      "candidate": 90.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "最近可达性检查过期",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_ENABLED",
+      "type": "boolean",
+      "candidate": true,
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "隔离用例可关闭；关闭时 inference=disabled",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_MODEL",
+      "type": "model_text",
+      "candidate": "Qwen3-VL-8B-Instruct",
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "来自 ALLOWED_MODELS；启用探测时必填",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_PROMPT",
+      "type": "model_text",
+      "candidate": "Reply OK.",
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "固定非秘密短文本",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_MAX_TOKENS",
+      "type": "positive_int",
+      "candidate": 1,
+      "status": "待内网上游验证",
+      "basis": "用户选定 Fast；实际协议/健康/探测兼容性待验证；不以 DeepSeek 代替",
+      "design_note": "上游不接受时 P0 冻结替代值",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_INTERVAL",
+      "type": "positive_number",
+      "candidate": 300.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "推理探测轮次间隔",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_TIMEOUT",
+      "type": "positive_number",
+      "candidate": 30.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "一次探测总时限",
+      "secret_source_only": false
+    },
+    {
+      "name": "INFERENCE_PROBE_STALE_AFTER",
+      "type": "positive_number",
+      "candidate": 600.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "最近实际执行结果过期；skipped 不刷新成功时间",
+      "secret_source_only": false
+    },
+    {
+      "name": "PROBE_MIN_SPARE_SLOTS",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "启动探测前至少空闲槽数，不保证后续业务无竞争",
+      "secret_source_only": false
+    },
+    {
+      "name": "PAGINATION_DEFAULT_LIMIT",
+      "type": "positive_int",
+      "candidate": 50,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "管理列表默认",
+      "secret_source_only": false
+    },
+    {
+      "name": "PAGINATION_MAX_LIMIT",
+      "type": "positive_int",
+      "candidate": 200,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "超限返回 400，不静默截断",
+      "secret_source_only": false
+    },
+    {
+      "name": "USAGE_MAX_RANGE_DAYS",
+      "type": "positive_int",
+      "candidate": 31,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "按时间范围最大跨度验证",
+      "secret_source_only": false
+    },
+    {
+      "name": "USAGE_MAX_GROUPS",
+      "type": "positive_int",
+      "candidate": 1000,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "查询至上限+1 判断溢出，超限 400",
+      "secret_source_only": false
+    },
+    {
+      "name": "USAGE_MAX_GROUP_DIMENSIONS",
+      "type": "positive_int",
+      "candidate": 2,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "仅 project/key/model/day 白名单",
+      "secret_source_only": false
+    },
+    {
+      "name": "DEFAULT_TIMEZONE",
+      "type": "timezone",
+      "candidate": "Asia/Shanghai",
+      "status": "本地输入已核对",
+      "basis": "与 ALLOWED_TIMEZONES 一致；不替代目标机校时",
+      "design_note": "UTC 存储，响应默认分桶时区",
+      "secret_source_only": false
+    },
+    {
+      "name": "ALLOWED_TIMEZONES",
+      "type": "timezone",
+      "candidate": [
+        "UTC",
+        "Asia/Shanghai"
+      ],
+      "status": "本地输入已核对",
+      "basis": "本地禁用系统 TZPATH 后可加载 UTC/Asia/Shanghai",
+      "design_note": "明确 IANA 白名单，扩展需 P0 验证",
+      "secret_source_only": false
+    },
+    {
+      "name": "TZDATA_SOURCE",
+      "type": "enum",
+      "candidate": "locked_python_package",
+      "status": "本地输入已核对",
+      "basis": "锁定 tzdata 2026.6，本地导入通过；目标机待验证",
+      "design_note": "固定 tzdata 版本；应用禁用系统 tzdb 搜索以统一规则",
+      "secret_source_only": false
+    },
+    {
+      "name": "REQUEST_LOG_RETENTION_DAYS",
+      "type": "positive_int",
+      "candidate": 180,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "显式归档清理脚本，默认 dry-run",
+      "secret_source_only": false
+    },
+    {
+      "name": "HEALTH_LOG_RETENTION_DAYS",
+      "type": "positive_int",
+      "candidate": 30,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "显式归档清理脚本",
+      "secret_source_only": false
+    },
+    {
+      "name": "AUDIT_LOG_RETENTION_DAYS",
+      "type": "positive_int",
+      "candidate": 365,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "显式归档清理脚本",
+      "secret_source_only": false
+    },
+    {
+      "name": "LOG_MAX_BYTES",
+      "type": "positive_int",
+      "candidate": 104857600,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "100 MiB 单文件",
+      "secret_source_only": false
+    },
+    {
+      "name": "LOG_RETENTION_DAYS",
+      "type": "positive_int",
+      "candidate": 7,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "结构化日志保留",
+      "secret_source_only": false
+    },
+    {
+      "name": "RECOVERY_SCAN_INTERVAL",
+      "type": "positive_number",
+      "candidate": 30.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "扫描本 run 非活动 started",
+      "secret_source_only": false
+    },
+    {
+      "name": "RECOVERY_GRACE_PERIOD",
+      "type": "positive_number",
+      "candidate": 60.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "非活动记录宽限后才 unknown",
+      "secret_source_only": false
+    },
+    {
+      "name": "INGRESS_GLOBAL_RATE",
+      "type": "positive_number",
+      "candidate": 20.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "受保护 API 进程级令牌桶，进入 DB 前",
+      "secret_source_only": false
+    },
+    {
+      "name": "INGRESS_GLOBAL_BURST",
+      "type": "positive_int",
+      "candidate": 40,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "允许短时突发",
+      "secret_source_only": false
+    },
+    {
+      "name": "INGRESS_IP_RATE",
+      "type": "positive_number",
+      "candidate": 5.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "每来源 IP 令牌桶，对所有凭证状态一视同仁",
+      "secret_source_only": false
+    },
+    {
+      "name": "INGRESS_IP_BURST",
+      "type": "positive_int",
+      "candidate": 20,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "同IP突发容量；须容纳额定合法并发首请求",
+      "secret_source_only": false
+    },
+    {
+      "name": "INGRESS_IP_MAX_ENTRIES",
+      "type": "positive_int",
+      "candidate": 4096,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "固定内存上限；表满且无过期项，新 IP 返回 429",
+      "secret_source_only": false
+    },
+    {
+      "name": "INGRESS_IP_IDLE_TTL",
+      "type": "positive_number",
+      "candidate": 120.0,
+      "status": "设计默认候选",
+      "basis": "设计书 §11.1/§11.1.1；尚未进行最终配置冻结",
+      "design_note": "回收不活跃桶；时钟用单调时间",
+      "secret_source_only": false
+    },
+    {
+      "name": "TRUSTED_PROXY_CIDRS",
+      "type": "cidr",
+      "candidate": [],
+      "status": "本地输入已核对",
+      "basis": "用户确认直连；.tools/p0-direct-echo-20261115.json；目标机复核待执行",
+      "design_note": "默认 socket peer 为来源；只信任明确列出的代理",
+      "secret_source_only": false
+    },
+    {
+      "name": "CLOCK_MAX_OFFSET",
+      "type": "positive_number",
+      "candidate": 1.0,
+      "status": "待目标环境验证",
+      "basis": "目标机及 DB 主机的内网 NTP/等效校时与偏差待取证",
+      "design_note": "P0/运维校时前提，不是请求路径 NTP 查询",
+      "secret_source_only": false
+    },
+    {
+      "name": "DEPENDENCY_LOCK_TOOL",
+      "type": "enum",
+      "candidate": "uv",
+      "status": "本地输入已核对",
+      "basis": "uv 0.13.8；p0/dependencies/uv.lock；目标机离线安装待验证",
+      "design_note": "锁 uv.lock 并导出带 hashes 依赖清单；工具版本 P0 固定",
+      "secret_source_only": false
+    }
+  ],
+  "budget_checks": {
+    "cleanup_seconds": 3.6,
+    "cleanup_limit": 5.0,
+    "pool_max": 36,
+    "lane_sum": 36,
+    "drain_cleanup_margin": 30.0,
+    "uvicorn_limit": 30.0,
+    "uvicorn_background_margin": 38.0,
+    "host_limit": 40.0
+  }
+}

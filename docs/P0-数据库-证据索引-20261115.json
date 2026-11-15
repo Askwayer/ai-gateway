@@ -1,0 +1,8 @@
+{
+  "scripts/provision_databases.py": "f49a8f53b084168d7c872274ee648c5fd75124ebe77cb29186bcd64544879e3b",
+  ".env.example": "7b36515ec11ecb949c6e3e73983980662cb5755c37e450ec41e65042b6f9873f",
+  "docs/数据库环境与账号.md": "dadb8da4e3b720729ec6a89face4acd807feabe3aa9e3b9376a3158e2fd5dc0e",
+  "docs/P0-执行记录.md": "2ae9f738a6b850fb962563e115b64acb2b52c7b716845180731532a2273f8c3d",
+  "docs/P0-数据库初始化记录-20261115.json": "1109060678e3b84b44713440beff9625388d16a7710fe95b753376f60f4dc984",
+  ".tools/p0-test-database-configured-20261115.json": "290cd434e47bfac2840a7efcf4d4425ff53f4028e697e14e86fec5b0bd35d481"
+}

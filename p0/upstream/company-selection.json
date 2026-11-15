@@ -1,0 +1,20 @@
+{
+  "purpose": "final_intranet_candidate",
+  "development_dependency": false,
+  "automatic_development_probe": false,
+  "selection_source": "user explicitly selected Fast on 2026-11-15",
+  "base_url": "http://172.31.34.204:5330/v1",
+  "model": "Qwen3-VL-8B-Instruct",
+  "api_key_source": ".env.company:UPSTREAM_API_KEY",
+  "client_to_gateway_topology": "direct_no_nginx",
+  "trusted_proxy_cidrs": [],
+  "health_path_candidate": "/models",
+  "health_request_url_candidate": "http://172.31.34.204:5330/v1/models",
+  "health_path_verified": false,
+  "protocol_verified": false,
+  "single_upstream": true,
+  "excluded_reference_capabilities": ["Strong/Vision routing", "embeddings", "reranker", "MinerU", "OSS proxy"],
+  "config_file": ".env.company",
+  "config_loader_implemented": true,
+  "config_loader_scope": "P1 local model/CLI only; company profile still fails until pending required inputs are supplied; no service deployment"
+}

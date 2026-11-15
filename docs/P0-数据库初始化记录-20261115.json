@@ -1,0 +1,43 @@
+{
+  "recorded_at_utc": "2026-11-15T04:06:15.230203+00:00",
+  "status": "created_verified_configured",
+  "databases": [
+    {
+      "database": "ai_gateway",
+      "runtime_role": "gateway_app",
+      "migration_role": "gateway_migrator",
+      "login_and_crud": "passed",
+      "sequence_defaults": "passed",
+      "runtime_create_drop_truncate_temp_denied": "passed"
+    },
+    {
+      "database": "ai_gateway_test",
+      "runtime_role": "gateway_test_app",
+      "migration_role": "gateway_test_migrator",
+      "login_and_crud": "passed",
+      "sequence_defaults": "passed",
+      "runtime_create_drop_truncate_temp_denied": "passed"
+    }
+  ],
+  "actions": [
+    "created roles for ai_gateway",
+    "created database ai_gateway",
+    "created roles for ai_gateway_test",
+    "created database ai_gateway_test"
+  ],
+  "credentials_printed": false,
+  "existing_databases": [],
+  "existing_roles": [],
+  "server_version": "18.7 (Debian 18.7-1.pgdg12+2)",
+  "max_connections": 100,
+  "client_connections_snapshot": 1,
+  "cross_environment_logins_denied": 4,
+  "active_database": "ai_gateway_test",
+  "business_tables_created": false,
+  "probe_tables_removed": true,
+  "role_connection_limits": {
+    "runtime_each": 36,
+    "migration_each": 2
+  },
+  "database_connection_limit_each": 40
+}

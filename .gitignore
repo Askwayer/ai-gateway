@@ -1,0 +1,26 @@
+# Project-local interpreter, tools and virtual environment
+.tools/
+.venv/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# macOS metadata
+.DS_Store
+
+# Reference clones, quality caches and local outputs
+参考项目/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/

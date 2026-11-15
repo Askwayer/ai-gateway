@@ -1,0 +1,48 @@
+{
+  "status": "probe_definition; results_are_in_timestamped_evidence_reports",
+  "base_url": "https://api.deepseek.com",
+  "api_key_source": "UPSTREAM_API_KEY or AI_FAST_API_KEY in local .env (first nonempty)",
+  "requested_model": "deepseek-v4-flash",
+  "deployment_role": "default_upstream_for_all_development; final_company_upstream_is_intranet",
+  "automatic_retries": 0,
+  "cases": [
+    {
+      "name": "models_candidate_reachability",
+      "method": "GET",
+      "path": "/models",
+      "note": "Authenticated model discovery only; does not prove inference health or alias availability"
+    },
+    {
+      "name": "nonstream_usage",
+      "method": "POST",
+      "path": "/chat/completions",
+      "json": {
+        "model": "deepseek-v4-flash",
+        "messages": [{"role": "user", "content": "Reply with OK only."}],
+        "max_tokens": 32,
+        "thinking": {"type": "disabled"},
+        "stream": false
+      }
+    },
+    {
+      "name": "sse_usage",
+      "method": "POST",
+      "path": "/chat/completions",
+      "json": {
+        "model": "deepseek-v4-flash",
+        "messages": [{"role": "user", "content": "Reply with OK only."}],
+        "max_tokens": 32,
+        "thinking": {"type": "disabled"},
+        "stream": true,
+        "stream_options": {"include_usage": true}
+      }
+    }
+  ],
+  "remaining_checks": [
+    "actual response model and account access",
+    "HTTP status, Content-Type, raw SSE framing and usage",
+    "client disconnect before first event and during streaming",
+    "provider-side cancellation evidence (client close alone is insufficient)",
+    "Ubuntu target network path, proxy and offline deployment scope"
+  ]
+}

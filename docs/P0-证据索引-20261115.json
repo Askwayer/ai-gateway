@@ -1,0 +1,13 @@
+{
+  "docs/AI-Gateway-开发执行计划-v1.1.md": "e0d5b4ea36510b148a55cf80751177663f724d798f8cac93c8f74a8639d57ced",
+  "docs/AI-Gateway-项目开发详细设计书-v1.6.md": "e1112f25c4effe9c82caa7f9e34dff4c987107a961f760249a980723ded97fc6",
+  "scripts/p0_preflight.py": "89deda7eaa649543ec4e16dc703efa46d2c74ac49b430c444ba511aa6855da7d",
+  "scripts/p0_verify_dependencies.py": "4f6358f596b0f7d43bec676dd8fda8c3d188c6c0e59073c8eb1c4933012c76d3",
+  "p0/dependencies/uv.lock": "c85c509448a421f40cf45e40e8e3ddadc1cd8d88b861bdb5b31bbcf899105976",
+  "p0/dependencies/requirements.txt": "f01e32188e3585ca359e97d4830adb5ae2130719e0905c4f6f0f7d040da9d696",
+  ".tools/p0-host-local-20261115.json": "bf472a2160fa76849a98a1ddf2c2442e1879f73991fc2da4ea647e1c14ecf94a",
+  ".tools/p0-database-20261115.json": "cb8915cc14f66618d389ba2ee127f8edffaa0ae9d302c6f2b0ac5b50820c1c78",
+  ".tools/p0-database-connected-20261115.json": "74e1e4809fa6b11d49589188e5e58d0cc26fbd1f5935e95da9df22705033e548",
+  ".tools/p0-dependency-smoke-local-final-20261115.json": "eac9080cd9c5214bda407d2901bc8c0c19359d8ad28c54ea0ed795688c4b7584",
+  ".tools/p0-wheelhouse-manifest-20261115.json": "54dffd0950eea7c1b1b4a7ea38f652ad10e7c9197cafbb9193be5d56318022d3"
+}

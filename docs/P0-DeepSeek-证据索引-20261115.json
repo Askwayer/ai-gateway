@@ -1,0 +1,14 @@
+{
+  "scripts/p0_probe_deepseek.py": "29fb3777ca93479ba4c594144ab8925cbd3e734aea8b5ef22447bec25c1f16db",
+  "p0/upstream/deepseek-probe-cases.json": "8404f2324385a7685c377d3aee28a1e9734cfd87716a6883943b1f0f01072059",
+  "docs/P0-执行记录.md": "4043a7c429e04bdd584f8cc92cab9aea092ad5a88917fb29a20a4d5ac7aa0077",
+  ".tools/p0-deepseek-20261115-run01/executed-probe.py": "29fb3777ca93479ba4c594144ab8925cbd3e734aea8b5ef22447bec25c1f16db",
+  ".tools/p0-deepseek-20261115-run01/executed-spec.json": "ac4ca0deb868f2be79913d146f4d38d2b8ac13dc2cd09aaae62b327d1c67ac58",
+  ".tools/p0-deepseek-20261115-run01/models_candidate_reachability.body.txt": "b4a502059eb2dafad6380e0a57b2debf31219ae859cba9f0e019d48ae473be2f",
+  ".tools/p0-deepseek-20261115-run01/models_candidate_reachability.json": "b2c5310839266b756bee5d44ef534cdba8d6818b358fb5b132859f69caf0e65c",
+  ".tools/p0-deepseek-20261115-run01/nonstream_usage.body.txt": "6674d01b94711173928b7eebecfe7c1c07a74cbe80bfd9e9e586b2230797c459",
+  ".tools/p0-deepseek-20261115-run01/nonstream_usage.json": "1f9a79084fb2ff0ad46ad3c0a23af1af31301f490a00c81df973827258dc7cc7",
+  ".tools/p0-deepseek-20261115-run01/report.json": "79da83fb6396d7151007a215e9c6aa9d927e393ee8efb4a5a27e064bebe1f000",
+  ".tools/p0-deepseek-20261115-run01/sse_usage.body.txt": "e19dcae17d182d17e004826feab57327c2045861ed60c35d4f438901fe4f51b4",
+  ".tools/p0-deepseek-20261115-run01/sse_usage.json": "d050dfe3b2a755a9fa25cf7765b368f4839f44ec4bd05abb87ba9fd76f837a98"
+}

@@ -1,0 +1,42 @@
+[project]
+name = "ai-gateway"
+version = "0.1.0"
+description = "Project-scoped gateway for a local OpenAI-compatible model service"
+requires-python = ">=3.12.3,<3.13"
+dependencies = [
+    "fastapi==0.163.0",
+    "sqlalchemy[asyncio]==2.0.57",
+    "asyncpg==0.32.0",
+    "alembic==1.20.1",
+    "httpx==0.28.1",
+    "uvicorn==0.54.0",
+    "anyio==4.16.0",
+    "pydantic==2.14.3",
+    "pydantic-settings==2.16.3",
+    "python-dotenv==1.2.4",
+    "tzdata==2026.6",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.9,<1", "mypy>=1.13,<2", "pip==26.3"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["app", "migrations/env.py"]
