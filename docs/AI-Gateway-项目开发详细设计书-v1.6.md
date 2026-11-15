@@ -207,6 +207,8 @@ ai-gateway/
 
 A13 的 `CLEANUP_TIMEOUT` 目标适用于健康验收主机，不是对操作系统完全失去调度或进程被 SIGKILL 的实时保证。发现不可取消驱动或关闭超时需标记降级并丢弃连接，不得无限等待。
 
+首条非流式切片的传输实现补充：仅包装Response的关闭不足以约束httpcore在读异常/取消时自行执行的关闭。默认HTTP/1.1传输采用底层TCP abort处置：需要物理关闭时直接调用asyncio Transport.abort，不等待异步关闭或TLS close_notify，让httpcore继续移除请求及失效连接；健康keep-alive仍复用。该策略不新增预算参数，也不重建整个共享池或中断其他请求。实际socket释放由事件循环后续回调完成，回归须同时证明对端EOF/复位、池项清空、结算/名额释放及后续恢复；不能只断言关闭协程退出。HTTPX 0.28.1、httpcore 1.0.9、AnyIO 4.16.0的适配边界集中在app/upstream_transport.py，依赖升级须复验；运行限定asyncio事件循环。此验证不等同于P3客户端断连监督器或目标Ubuntu现场验收。
+
 ### 5.4 HTTP 错误与完成结果
 
 | 情况 | 未发送响应头时 | 已开始 SSE 时 | 内部 outcome |
