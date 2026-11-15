@@ -1,0 +1,40 @@
+Running: scripts/check_repository.py
+PASS: Git exclusions and distributable-file secret scan.
+Running: -m ruff check app migrations tests scripts/check_quality.py scripts/check_repository.py scripts/check_development.py scripts/verify_nonstream_slice.py scripts/verify_admin_slice.py scripts/verify_database_foundation.py
+All checks passed!
+Running: -m ruff format --check app migrations tests scripts/check_quality.py scripts/check_repository.py scripts/check_development.py scripts/verify_nonstream_slice.py scripts/verify_admin_slice.py scripts/verify_database_foundation.py
+40 files already formatted
+Running: -m mypy
+Success: no issues found in 18 source files
+Running: -m pytest -q
+........................................................................ [ 25%]
+........................................................................ [ 50%]
+........................................................................ [ 76%]
+...................................................................      [100%]
+283 passed in 4.18s
+Running: scripts/check_docs.py
+PASS v1.6: 80 configs, 44 cases, 14 feature mappings, 9 performance targets; budgets and Markdown valid.
+PLAN PASS: 45 work packages; 36 person-days + 6 contingency; phase sums, dependency DAG and case ownership valid.
+Running: scripts/test_check_docs.py
+test_configuration_failures_even_during_sync (__main__.DocumentContracts.test_configuration_failures_even_during_sync) ... ok
+test_current_and_historical_baselines (__main__.DocumentContracts.test_current_and_historical_baselines) ... ok
+test_filled_reports_never_overwritten (__main__.DocumentContracts.test_filled_reports_never_overwritten) ... ok
+test_generated_block_drift (__main__.DocumentContracts.test_generated_block_drift) ... ok
+test_narrative_thresholds_and_conclusion (__main__.DocumentContracts.test_narrative_thresholds_and_conclusion) ... ok
+test_nonexistent_case_and_phase_mismatch (__main__.DocumentContracts.test_nonexistent_case_and_phase_mismatch) ... ok
+test_plan_effort_and_dependency_failures (__main__.DocumentContracts.test_plan_effort_and_dependency_failures) ... ok
+test_plan_schedule_and_ownership_failures (__main__.DocumentContracts.test_plan_schedule_and_ownership_failures) ... ok
+test_secret_source_column_cannot_be_overwritten (__main__.DocumentContracts.test_secret_source_column_cannot_be_overwritten) ... ok
+test_sync_preserves_handwritten_content_and_is_idempotent (__main__.DocumentContracts.test_sync_preserves_handwritten_content_and_is_idempotent) ... ok
+test_v14_contract_references_and_new_narrative_areas (__main__.DocumentContracts.test_v14_contract_references_and_new_narrative_areas) ... ok
+test_v14_startup_and_health_budget_failures (__main__.DocumentContracts.test_v14_startup_and_health_budget_failures) ... ok
+test_v15_profile_and_contract_omissions (__main__.DocumentContracts.test_v15_profile_and_contract_omissions) ... ok
+test_v16_preserves_acceptance_contract_and_plan_on_sync (__main__.DocumentContracts.test_v16_preserves_acceptance_contract_and_plan_on_sync) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 2.368s
+
+OK
+Running: scripts/p0_config_candidates.py --check
+PASS: 80 candidates; complete type coverage; secret sources only; budgets and source consistency checked. Not M0 sign-off.
+PASS: local foundation quality checks; not A acceptance or M0/M1 sign-off.

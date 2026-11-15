@@ -47,6 +47,7 @@ docs/P0-延期与P1例外记录.md
 docs/P1-本地基座执行记录.md
 docs/P1-首条非流式纵向切片-执行记录.md
 docs/P1-管理闭环-执行记录.md
+docs/P1-数据库基础收口-执行记录.md
 docs/AI-Gateway-项目开发详细设计书-v1.6.md
 docs/AI-Gateway-验收记录模板-v1.6.md
 docs/AI-Gateway-开发执行计划-v1.1.md
@@ -64,6 +65,16 @@ docs/P0-数据库初始化记录-20261115.json
 .tools/p1-admin-e2e-20261115-run01.json
 .tools/p1-admin-e2e-20261115-run02.json
 .tools/p1-admin-e2e-20261115-run06.json
+.tools/p1-db-foundation-20261115-run04.json
+.tools/p1-db-foundation-20261115-run05.json
+.tools/p1-db-foundation-20261115-run06.json
+.tools/p1-db-foundation-20261115-run07.json
+.tools/p1-db-recovery-20261115-run02.json
+.tools/p1-db-recovery-20261115-run03.json
+.tools/p1-db-quality-20261115.log
+.tools/p1-db-regressions-20261115.xml
+docs/evidence/p1-db-20261115/database-regressions.xml
+docs/evidence/p1-db-20261115/quality.log
 docs/evidence/p1-admin-20261115/admin-regressions.xml
 docs/evidence/p1-admin-20261115/quality.log
 docs/evidence/p1-nonstream-20261115/transport-regressions.xml
