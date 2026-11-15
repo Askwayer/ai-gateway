@@ -778,6 +778,8 @@ P6报告包含DB checkout等待、SQL时长、通道拒绝数、峰值连接数�
 总时限覆盖连接上游之前和传输期间，HTTPX read timeout 不是请求总时限。完整超时参数在 P0 固定；较短的结算专用时限优先于普通 DB_OPERATION_TIMEOUT。
 
 
+配置加载职责补充：只读取显式选定的一个环境文件，缺失或非法时失败，不跨环境补齐；进程同名变量可覆盖文件，部署需清理残留变量。上游地址、库名、账号属于部署值，不在运行代码中写死。文件仅使用规范运行字段与 APP_ENV / MIGRATION_DATABASE_URL，不接受 TEST_* / PRODUCTION_* / AI_FAST_* 兼容别名。迁移独立加载凭证，要求与运行连接同目标、不同角色，并在真实连接后核对配置声明的数据库和迁移用户。当前“DeepSeek + 专用测试库”的阶段限制由唯一配置 CLI `app.config_check --profile local-development` 在开发连接/迁移前检查；`scripts/check_development.py` 只保留兼容 wrapper。company 迁移由 `load_migration_config` 强制拒绝，包括完整配置、在线与 `--sql` 离线模式，且在创建 engine 前生效。`--profile company` 仅检查运行配置；以后放开 company 迁移需另行明确授权并修改门禁。配置解析通过 `read_environment_file` 公开入口共享，80 项运行 schema 仍只在 Settings 中维护。该调整不改变 P0 现场签收或正式库操作授权。
+
 #### 11.1.1 完整启动校验清单
 
 以下类型清单覆盖CONFIG源表每个字段且只出现一次。配置加载后、创建连接/启动后台任务前执行结构与交叉校验；日志只给字段名/规则ID和脱敏原因，不输出原值。P0评审清单并冻结候选值，P1实现实际Pydantic校验，A42逐条负例验证；文档脚本只校验可静态判断的候选值、覆盖率和预算，不能替代文件可读性、真实秘密或现场资源取证。
