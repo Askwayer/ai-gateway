@@ -2,6 +2,8 @@
 
 当前已完成非流式切片并实现**管理闭环**：管理员建课题、发Key、查询/修改/禁用、原子审计，以及健康检查、单上游转发、请求登记与幂等结算。管理闭环按代码、文档、证据拆分交付，提交版本见[证据索引](docs/P1-管理闭环-证据索引-20261115.json)。开发使用DeepSeek和专用测试库。P0/M0、完整P1/P2尚未签收，现场验证继续待办。
 
+EX-P0-DB-01数据库基础本地范围已验证，按代码、文档、证据拆分交付；提交与验证见[数据库证据索引](docs/P1-数据库基础收口-证据索引-20261115.json)，状态见[数据库基础记录](docs/P1-数据库基础收口-执行记录.md)。上列管理索引为9dbd62e历史快照。
+
 ## 环境与检查
 
 Python >=3.12.3,<3.13，uv 0.13.8，运行/开发依赖已锁定。真实秘密只在被忽略的本地环境文件中。
@@ -12,7 +14,7 @@ Python >=3.12.3,<3.13，uv 0.13.8，运行/开发依赖已锁定。真实秘密�
 .venv/bin/python scripts/check_quality.py
 ```
 
-完整质量入口运行224项本地pytest、Ruff、mypy及14组文档测试，不连接真实数据库或外部上游。传输测试会启动127.0.0.1临时TCP/TLS监听器；需要允许回环连接，并提供本机openssl命令生成一次性测试证书。证书/私钥仅写测试临时目录。Ubuntu离线安装、最终平台资源与上游能力不能由macOS本地结果替代。
+完整质量入口运行283项本地pytest、Ruff、mypy及14组文档测试，不连接真实数据库或外部上游。传输测试会启动127.0.0.1临时TCP/TLS监听器；需要允许回环连接，并提供本机openssl命令生成一次性测试证书。证书/私钥仅写测试临时目录。Ubuntu离线安装、最终平台资源与上游能力不能由macOS本地结果替代。
 
 ## 配置和迁移边界
 
@@ -58,3 +60,21 @@ HEALTH_REACHABILITY_ENABLED=false HEALTH_GATE_ENABLED=false INFERENCE_PROBE_ENAB
 最新管理记录见 [管理闭环执行记录](docs/P1-管理闭环-执行记录.md)；已提交的上一批见 [纵向切片执行记录](docs/P1-首条非流式纵向切片-执行记录.md)，历史基座见 [P1基座记录](docs/P1-本地基座执行记录.md)，授权与P0现场待办见 [例外记录](docs/P0-延期与P1例外记录.md)。P0交接物用 `python scripts/build_p0_handoff.py --check` 验证，依赖本机忽略的证据/wheels，不是应用发布包。
 
 上一批非流式代码、文档与证据已分别提交；该历史版本的标识、源文件哈希及质量证据见 [非流式切片证据索引](docs/P1-非流式切片-证据索引-20261115.json)。
+
+数据库基础隔离复验（显式创建随机命名临时库及专属角色，结束仅删除本轮资源；使用本地`.env.db-admin`，不修改现有测试库）：
+
+```bash
+.venv/bin/python scripts/verify_database_foundation.py --create-disposable --report .tools/p1-db-new-run.json
+```
+
+该夹具验证同一PostgreSQL集群上的空库重建；历史0001引用预先存在的gateway_test_app角色，不代表全新集群安装已验证。Ubuntu现场及完整生产生命周期另行验证。
+
+隔离夹具会在DDL前将资源计划写入`.tools/db-disposable/`（目录0700、journal 0600，不含密码）；角色创建与归属标记同事务，建库确认丢失时以已标记的专属owner核验归属。清理前先有界关闭创建连接，再使用新连接按journal中PID及backend_start确认原后台会话已退出，随后比对集群标识、角色标记及数据库owner。仅socket关闭不能认定DDL结束；后台仍存在或归属不符时拒绝删除及标记已清理。异常退出后使用对应journal恢复，禁止按前缀批量删库：
+
+```bash
+.venv/bin/python scripts/verify_database_foundation.py --recover-journal .tools/db-disposable/gw_verify_<本轮标识>.json --report .tools/p1-db-recovery-new.json
+```
+
+报告必须使用新路径。恢复仅处理journal中精确列出的资源，可重复执行；未清理成功的journal必须保留并复核，不能把脚本退出当作资源已回收。
+
+新journal为v2并记录创建会话身份；旧v1缺少该身份，恢复命令会拒绝自动回收，需要人工核对，不通过猜测PID或仅查询资源暂时不存在来补写已清理。

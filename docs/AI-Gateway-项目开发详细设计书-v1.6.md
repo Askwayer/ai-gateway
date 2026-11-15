@@ -312,7 +312,7 @@ Content-Type的具体契约如下；这是首版兼容范围，媒体类型名/�
 
 管理闭环实现契约：列表返回 `{data: [...], next_cursor: string|null}`，按 `(created_at DESC,id DESC)` 参数化游标分页，读取limit+1判定下一页；limit使用既有默认/最大配置，active仅接受true/false，重复或未知查询参数、非法游标返回400。PATCH必须包含至少一个允许字段，禁止变更id/code/project_id/key_hash；max_concurrency为正INTEGER范围值，不接受布尔/显式NULL。expires_at要求带时区的ISO时间，PATCH中NULL表示清除到期日。查询不返回Key明文或哈希，管理成功响应均带Cache-Control: no-store。
 
-撤销在本闭环中指PATCH旧Key的is_active=false；可按启停接口重新启用，但不会清除已有revoked_at。所有已注册管理路由先执行管理员鉴权依赖，再校验UUID路径及请求参数；管理员身份直接恒定时间校验；其他凭证通过鉴权DB通道仅识别Key哈希，已知Key（包括禁用/过期）访问管理返回403，未知Key为401。管理SQL另占ADMIN_DB_MAX_INFLIGHT通道，容量满立即503 admin_capacity_exceeded并带既有Retry-After；SQL操作受DB_OPERATION_TIMEOUT限制，退出清理另受既有CLEANUP_TIMEOUT约束；显式调用连接close而不使用会等待屏蔽清理的连接上下文退出。关闭/回滚到期或取消时，对该连接同步硬失效并终止asyncpg连接、归还池记录，再释放通道；不全池dispose，不留后台close任务。清理看门狗与超时共享单调截止时间，在受支持的驱动和健康调度环境下，操作及清理总预算不超过DB_OPERATION_TIMEOUT+CLEANUP_TIMEOUT。取消继续传播。提交确认后清理失败也返回503；提交期间断连的结果可能未知，不自动重试写入，调用者需查询确认，503不等同于业务必然回滚。审计action固定project.create/project.update/key.create/key.update，actor=admin，仅写允许字段的before/after值。此处不提前实现P5审计查询或P2入口桶。
+撤销在本闭环中指PATCH旧Key的is_active=false；可按启停接口重新启用，但不会清除已有revoked_at。所有已注册管理路由先执行管理员鉴权依赖，再校验UUID路径及请求参数；管理员身份直接恒定时间校验；其他凭证通过鉴权DB通道仅识别Key哈希，已知Key（包括禁用/过期）访问管理返回403，未知Key为401。管理SQL另占ADMIN_DB_MAX_INFLIGHT通道，容量满立即503 admin_capacity_exceeded并带既有Retry-After；SQL操作与退出清理共享DB_OPERATION_TIMEOUT截止时间，清理同时不超过既有CLEANUP_TIMEOUT；显式调用连接close而不使用会等待屏蔽清理的连接上下文退出。关闭/回滚到期或取消时，对该连接同步硬失效并终止asyncpg连接、归还池记录，再释放通道；不全池dispose，不留后台close任务。清理看门狗与超时共享单调截止时间，在受支持的驱动和健康调度环境下，已获得连接后的SQL/提交及清理使用同一调用截止时间，较短的结算单次/总预算优先，不为清理重新增加完整预算。取消继续传播。提交确认后清理失败也返回503；提交期间断连的结果可能未知，不自动重试写入，调用者需查询确认，503不等同于业务必然回滚。审计action固定project.create/project.update/key.create/key.update，actor=admin，仅写允许字段的before/after值。此处不提前实现P5审计查询或P2入口桶。
 
 
 创建接口不承诺幂等：客户端超时后不可无条件重试。Key 创建响应丢失时无法找回明文，可查询记录后禁用旧 Key 并重建；不通过日志找回密钥。
@@ -780,6 +780,8 @@ Token 校验要求整数且非负，不接受布尔值冒充整数。默认校�
 预算约束：`UPSTREAM_CLOSE_TIMEOUT + SETTLEMENT_MAX_ATTEMPTS × SETTLEMENT_ATTEMPT_TIMEOUT + (SETTLEMENT_MAX_ATTEMPTS-1) × SETTLEMENT_RETRY_BACKOFF < CLEANUP_TIMEOUT`；`APP_DRAIN_TIMEOUT + CLEANUP_TIMEOUT + SHUTDOWN_SAFETY_MARGIN <= UVICORN_GRACEFUL_TIMEOUT`；`UVICORN_GRACEFUL_TIMEOUT + BACKGROUND_SHUTDOWN_TIMEOUT + SHUTDOWN_SAFETY_MARGIN <= HOST_STOP_TIMEOUT`。SETTLEMENT_ATTEMPT_TIMEOUT不得大于DB_OPERATION_TIMEOUT。宿主实际时限需要部署脚本/进程管理器单独配置并取证，不仅校验环境变量。
 
 数据库不是每条流长期占一条连接；本版以业务登记/结算不超过 GLOBAL_MAX_CONCURRENCY、鉴权/拒绝不超过 AUTH_DB_MAX_INFLIGHT、管理不超过 ADMIN_DB_MAX_INFLIGHT、后台不超过 BACKGROUND_DB_MAX_INFLIGHT 为保守预算，池总上限必须不小于四者之和。各通道必须先取得进程内门控，单个操作最多一个连接；先归还连接再释放通道，禁止嵌套持有两个通道。通过鉴权即释放鉴权通道，之后才申请业务名额和登记；业务拒绝日志重新尝试鉴权/拒绝通道，满则转auth_capacity_exceeded并仅计ingress。增加任一容量必须同时审查数据库max_connections、其他应用占用、管理保留连接和本应用连接授权，不能自动扩池。
+
+WP-DB-02实现使用独立Core连接/事务，不跨请求共享会话。鉴权、登记/标记/结算、管理和ready统一显式连接清理；调用者通过上下文传递单调截止时间，截止保护在取连接前安装，覆盖池内等待、建连、驱动初始化、pre-ping及其取消回滚；已关联物理连接到期仅终止该连接，并中断仍在等待的回滚，不对整池执行abort；连接交付后继续按同一截止时间保护SQL/提交/清理；嵌套操作不延长父截止时间。取连接期间对所属驱动的SQLAlchemy硬失效使用同步terminate，避免断连重试中的异步关闭被二次取消打断而漏还池记录；其他连接仍走原路径，驱动回滚抛错不能覆盖已发生的调用者取消。ready先占后台通道，满额不排队、不访问DB；成功、失败、超时和取消均在连接退出后释放通道。记录connect/checkout/checkin/reset/invalidate/close事件计数、实际当前/峰值池占用（pool.checkedout，包含建连/pre-ping），另列successful_checkouts_active表示已触发checkout且尚未checkin的记录数；两者不得混用。不保留SQL、凭证或无界历史；重复失效回调按事件次数计数，不冒充唯一物理连接数。观察值仅供内部验证，/admin/runtime归后续工作包。应用全局shutdown排空与引擎关闭仍由生命周期/停止工作包收口。
 
 P6报告包含DB checkout等待、SQL时长、通道拒绝数、峰值连接数，以及GLOBAL_MAX_CONCURRENCY条同时登记/结算突发。池大小只控制资源上界，额外耗时目标引用§15.2实测；不能由扩池推出性能已达标。
 
