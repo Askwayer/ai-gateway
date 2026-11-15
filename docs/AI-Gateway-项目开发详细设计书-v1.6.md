@@ -229,9 +229,9 @@ A13 的 `CLEANUP_TIMEOUT` 目标适用于健康验收主机，不是对操作系
 
 上游 4xx/5xx 保留状态码，但错误体只提取允许的 type/code 与脱敏 message，补充 `source=upstream` 和 `upstream_status`；非 JSON 或不安全错误正文改为通用消息，不直接透传。上游错误的网关 code 固定 `upstream_http_error`，原上游 code 存可选 `upstream_code`。上游成功业务体保持原契约；统一错误信封是明确的错误路径改写。
 
-错误字段契约（均位于 error 对象）：type 为网关稳定类别，取 invalid_request_error、authentication_error、permission_error、rate_limit_error、service_unavailable_error、upstream_error、timeout_error、internal_error；分别对应输入/路由、鉴权、权限、429、本地503、上游错误、网关504、内部500。上游错误统一 type=upstream_error，原上游 type 写入可选 upstream_type，避免覆盖网关类别。upstream_status 为原上游 HTTP 整数状态码，仅 source=upstream 的 HTTP 错误必填；upstream_code/upstream_type 为可选的脱敏字符串，缺失或不安全则省略。它们只允许 ASCII 字母、数字、下划线、点和连字符，最多64字符；整数code（不含布尔值）可转十进制字符串，其他类型丢弃；message 使用网关模板，不复制任意上游正文。source=gateway 时不生成这三个上游字段。请求记录继续使用 upstream_status_code 存 HTTP 状态，不与响应 error.upstream_status 混淆。
+错误字段契约（均位于 error 对象）：type 为网关稳定类别，取 invalid_request_error、authentication_error、permission_error、conflict_error、rate_limit_error、service_unavailable_error、upstream_error、timeout_error、internal_error；分别对应输入/路由、鉴权、权限、资源冲突409、429、本地503、上游错误、网关504、内部500。上游错误统一 type=upstream_error，原上游 type 写入可选 upstream_type，避免覆盖网关类别。upstream_status 为原上游 HTTP 整数状态码，仅 source=upstream 的 HTTP 错误必填；upstream_code/upstream_type 为可选的脱敏字符串，缺失或不安全则省略。它们只允许 ASCII 字母、数字、下划线、点和连字符，最多64字符；整数code（不含布尔值）可转十进制字符串，其他类型丢弃；message 使用网关模板，不复制任意上游正文。source=gateway 时不生成这三个上游字段。请求记录继续使用 upstream_status_code 存 HTTP 状态，不与响应 error.upstream_status 混淆。
 
-网关入口桶 429 与业务并发 429 使用 `CONCURRENCY_RETRY_AFTER`；auth_capacity_exceeded、database_unavailable、shutting_down、upstream_unhealthy 等可构造的网关 503（含 ready）统一带 `SERVICE_UNAVAILABLE_RETRY_AFTER` 指定的整数秒 Retry-After。auth 容量拒绝归 runtime.ingress，本版没有单独的 ingress 503 错误码。上游 429/503 只按 §6.1 的允许列表保留其 Retry-After，不用网关值覆盖。该头仅建议等待，不保证恢复，也不授权客户端自动重试已产生副作用的请求。
+网关入口桶 429 与业务并发 429 使用 `CONCURRENCY_RETRY_AFTER`；auth_capacity_exceeded、admin_capacity_exceeded、database_unavailable、shutting_down、upstream_unhealthy 等可构造的网关 503（含 ready）统一带 `SERVICE_UNAVAILABLE_RETRY_AFTER` 指定的整数秒 Retry-After。auth 容量拒绝归 runtime.ingress，本版没有单独的 ingress 503 错误码。上游 429/503 只按 §6.1 的允许列表保留其 Retry-After，不用网关值覆盖。该头仅建议等待，不保证恢复，也不授权客户端自动重试已产生副作用的请求。
 
 所有到达应用、且尚能发送响应的成功/错误/SSE/429/404/405 响应均包含网关生成的 UUID 头 `X-Request-ID`。覆盖而不信任客户端同名头；上游同名头不得覆盖它。错误另带 `X-Error-Source: gateway|upstream`，与 JSON source 一致。上游 401 因而可与本地凭证错误区分。服务器在进入应用前拒绝的非法 HTTP、连接已断开或已发出的流，不保证追加响应头/错误体。
 
@@ -241,9 +241,10 @@ A13 的 `CLEANUP_TIMEOUT` 目标适用于健康验收主机，不是对操作系
 | 401 | invalid_api_key | gateway | 缺失、未知、过期、禁用凭证 |
 | 403 | permission_denied | gateway | 课题凭证访问管理接口等权限错误 |
 | 404 / 405 | not_found / method_not_allowed | gateway | 路由、资源不存在或方法不允许 |
+| 409 | project_code_conflict | gateway | 创建课题的code已存在，不自动重试创建 |
 | 413 | request_too_large | gateway | 请求体超限 |
 | 429 | ingress_rate_limited / concurrency_limit_exceeded | gateway | 入口/IP 保护或业务三层并发限制；带 Retry-After |
-| 503 | auth_capacity_exceeded / database_unavailable / shutting_down | gateway | 鉴权门控、数据库错误或排空 |
+| 503 | auth_capacity_exceeded / admin_capacity_exceeded / database_unavailable / shutting_down | gateway | 鉴权/管理门控、数据库错误或排空 |
 | 503 | upstream_unhealthy | gateway | 本地健康门控拒绝 |
 | 502 | upstream_connection_error / upstream_protocol_error | gateway | 网关访问上游连接/编码/响应格式错误 |
 | 504 | upstream_timeout / request_timeout | gateway | 上游等待或总时限 |
@@ -308,6 +309,11 @@ Content-Type的具体契约如下；这是首版兼容范围，媒体类型名/�
 | GET `/admin/audit-logs` | from、to、action、resource_id、cursor、limit | 只读脱敏管理审计，不含 Key 明文/哈希 |
 
 首版不提供物理删除课题/Key；禁用保留历史关联。Key 轮换采用“发新 Key → 切换客户端 → 禁用旧 Key”，避免引入独立轮换状态机。
+
+管理闭环实现契约：列表返回 `{data: [...], next_cursor: string|null}`，按 `(created_at DESC,id DESC)` 参数化游标分页，读取limit+1判定下一页；limit使用既有默认/最大配置，active仅接受true/false，重复或未知查询参数、非法游标返回400。PATCH必须包含至少一个允许字段，禁止变更id/code/project_id/key_hash；max_concurrency为正INTEGER范围值，不接受布尔/显式NULL。expires_at要求带时区的ISO时间，PATCH中NULL表示清除到期日。查询不返回Key明文或哈希，管理成功响应均带Cache-Control: no-store。
+
+撤销在本闭环中指PATCH旧Key的is_active=false；可按启停接口重新启用，但不会清除已有revoked_at。所有已注册管理路由先执行管理员鉴权依赖，再校验UUID路径及请求参数；管理员身份直接恒定时间校验；其他凭证通过鉴权DB通道仅识别Key哈希，已知Key（包括禁用/过期）访问管理返回403，未知Key为401。管理SQL另占ADMIN_DB_MAX_INFLIGHT通道，容量满立即503 admin_capacity_exceeded并带既有Retry-After；SQL操作受DB_OPERATION_TIMEOUT限制，退出清理另受既有CLEANUP_TIMEOUT约束；显式调用连接close而不使用会等待屏蔽清理的连接上下文退出。关闭/回滚到期或取消时，对该连接同步硬失效并终止asyncpg连接、归还池记录，再释放通道；不全池dispose，不留后台close任务。清理看门狗与超时共享单调截止时间，在受支持的驱动和健康调度环境下，操作及清理总预算不超过DB_OPERATION_TIMEOUT+CLEANUP_TIMEOUT。取消继续传播。提交确认后清理失败也返回503；提交期间断连的结果可能未知，不自动重试写入，调用者需查询确认，503不等同于业务必然回滚。审计action固定project.create/project.update/key.create/key.update，actor=admin，仅写允许字段的before/after值。此处不提前实现P5审计查询或P2入口桶。
+
 
 创建接口不承诺幂等：客户端超时后不可无条件重试。Key 创建响应丢失时无法找回明文，可查询记录后禁用旧 Key 并重建；不通过日志找回密钥。
 
@@ -494,7 +500,7 @@ rejected的HTTP/错误字段必须与拒绝范围成组匹配，不能只分别�
 | global / project / key | 429 | concurrency_limit_exceeded | NULL |
 | upstream_unhealthy | 503 | upstream_unhealthy | NULL |
 
-outcome为NOT NULL；迁移增加名为ck_rejected_http_contract的CHECK：当outcome='rejected'时，upstream_status_code必须IS NULL，且上表组合条件必须IS TRUE。显式IS TRUE避免SQL三值逻辑让response_status_code/error_code/rejection_scope中的NULL通过CHECK。A20验证两类合法INSERT及错误状态/错误码/错配scope/上游状态非空/必填字段NULL等非法INSERT；上述响应状态是网关拟返回值，不证明客户端已接收。auth_capacity_exceeded、database_unavailable和shutting_down等不属于持久化rejected允许值；拒绝日志执行失败仍按既定runtime路径处理，不制造另一条503拒绝账。
+outcome为NOT NULL；迁移增加名为ck_rejected_http_contract的CHECK：当outcome='rejected'时，upstream_status_code必须IS NULL，且上表组合条件必须IS TRUE。显式IS TRUE避免SQL三值逻辑让response_status_code/error_code/rejection_scope中的NULL通过CHECK。A20验证两类合法INSERT及错误状态/错误码/错配scope/上游状态非空/必填字段NULL等非法INSERT；上述响应状态是网关拟返回值，不证明客户端已接收。auth_capacity_exceeded、admin_capacity_exceeded、database_unavailable和shutting_down等不属于持久化rejected允许值；拒绝日志执行失败仍按既定runtime路径处理，不制造另一条503拒绝账。
 
 索引：
 
@@ -1022,7 +1028,7 @@ limit-isolation是A15/A24的固定专项profile：仅将GLOBAL_MAX_CONCURRENCY�
 | A36 | 查询保护 | 非法 group_by、维度超限、超时间范围、超分组数、未知查询参数返回统一400；请求明细固定排序；禁止截断后冒充完整统计 |
 | A37 | 模型目录 | 有效课题Key访问/v1/models返回配置白名单，未知/禁用Key401；不请求上游、不暴露秘密，目录不被误作实时健康结果 |
 | A38 | 运行状态契约 | 逐类制造拒绝核对runtime字段、互斥分类及counter_scope；global_active=business_active+probe_active，正常/异常结束归零；进程重启计数清零而DB历史不变 |
-| A39 | 错误信封与追踪 | 覆盖400/401/403/404/405/413/429/500/502/503/504、框架校验和上游401/429/503；核对§5.4的type/code/source/upstream_status/upstream_code/upstream_type类型/脱敏，Retry-After来源和值，X-Request-ID与X-Error-Source，405 Allow；客户端/上游ID无法覆盖，SSE成功头含ID |
+| A39 | 错误信封与追踪 | 覆盖400/401/403/404/405/409/413/429/500/502/503/504、框架校验和上游401/429/503；核对§5.4的type/code/source/upstream_status/upstream_code/upstream_type类型/脱敏，Retry-After来源和值，X-Request-ID与X-Error-Source，405 Allow；客户端/上游ID无法覆盖，SSE成功头含ID |
 | A40 | HTTP转发边界 | identity流按拼接后的业务字节序列一致，不要求HTTP chunk分界一致；上游gzip/br在下游发头前502；客户端Cookie不转发、上游Set-Cookie/Content-Encoding/Transfer-Encoding不复制；允许服务器重分帧；来源头不可伪造；逐项执行§6.1 Content-Type矩阵，含参数/大小写、缺失/重复、成功SSE类型不符、401 HTML错误保留状态 |
 | A41 | 入口保护与恢复 | 默认保护轮次使用default-protection，按§14.1.2注入；桶容量专项另用§14.1.3实验profile并记录配置偏差/来源IP证据：快DB未知Key为401，桶耗尽为429，桶项≤INGRESS_IP_MAX_ENTRIES；慢DB屏障占满AUTH_DB_MAX_INFLIGHT后另发有令牌请求应503 auth_capacity_exceeded且无DB访问；已获通道操作超过DB_OPERATION_TIMEOUT为503 database_unavailable；auth_inflight不超上限，取消/超时后通道归还；总DB连接不超池上限。另按§11.3测信任链伪造/NAT；停洪泛、撤延迟、通道归零并补足令牌后合法请求恢复，禁用Key仍401；逐类核对计数和Retry-After |
 | A42 | 配置与环境冻结 | 逐项执行§11.1.1类型/交叉/现场检查及负例；非法预算/枚举/时区/连接配额启动失败；校时、直连PG、tzdata与uv版本和离线哈希有证据；冻结变更同步文档 |

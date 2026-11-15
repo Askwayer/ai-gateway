@@ -22,8 +22,9 @@ class DocumentContracts(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="ai-gateway-docs-")
         self.addCleanup(self.temp.cleanup)
         self.docs = Path(self.temp.name)
-        for path in (ROOT / "docs").glob("*.md"):
-            (self.docs / path.name).write_bytes(path.read_bytes())
+        for path in (ROOT / "docs").iterdir():
+            if path.is_file() and path.suffix in {".md", ".json"}:
+                (self.docs / path.name).write_bytes(path.read_bytes())
 
     def run_check(self, *args: str, ok: bool = True, reason: str = "") -> None:
         result = subprocess.run(
@@ -215,7 +216,9 @@ class DocumentContracts(unittest.TestCase):
     def edit_work(self, work_id: str, column: int, value: str) -> None:
         path = self.docs / PLAN
         lines = path.read_text().splitlines()
-        indices = [i for i, line in enumerate(lines) if line.startswith(f"| {work_id} |")]
+        left = lines.index("<!-- WORKPACKAGES_BEGIN -->")
+        right = lines.index("<!-- WORKPACKAGES_END -->")
+        indices = [i for i in range(left + 1, right) if lines[i].startswith(f"| {work_id} |")]
         self.assertEqual(len(indices), 1)
         index = indices[0]
         cells = [cell.strip() for cell in lines[index].strip("|").split("|")]
@@ -265,7 +268,11 @@ class DocumentContracts(unittest.TestCase):
         old = (self.docs / "AI-Gateway-项目开发详细设计书-v1.5.md").read_text()
         new = (self.docs / DESIGN).read_text()
         for name in ("CONFIG", "PERF", "CASES", "TRACE", "VALIDATION"):
-            self.assertEqual(block(old, name), block(new, name), name)
+            expected = block(old, name)
+            if name == "CASES":
+                # EX-P0-ADMIN-01 adds the project-code conflict branch to A39 only.
+                expected = expected.replace("覆盖400/401/403/404/405/413", "覆盖400/401/403/404/405/409/413")
+            self.assertEqual(expected, block(new, name), name)
         before = (self.docs / PLAN).read_bytes()
         self.run_check("--sync-template")
         self.assertEqual(before, (self.docs / PLAN).read_bytes())
