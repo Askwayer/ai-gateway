@@ -14,10 +14,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_only_approved_slice_tables_and_revision():
-    assert set(metadata.tables) == {"projects", "api_keys", "request_logs"}
+    assert set(metadata.tables) == {
+        "projects",
+        "api_keys",
+        "request_logs",
+        "health_checks",
+        "admin_audit_logs",
+    }
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
     assert scripts.get_heads() == [REVISION]
-    assert len(list(scripts.walk_revisions())) == 1
+    assert len(list(scripts.walk_revisions())) == 2
 
 
 def test_offline_empty_migration_and_company_no_fallback(env_root):
@@ -42,7 +48,8 @@ def test_offline_empty_migration_and_company_no_fallback(env_root):
     )
     assert result.returncode == 0, result.stderr
     assert "CREATE TABLE projects" in result.stdout
-    assert "CREATE TABLE health_checks" not in result.stdout
+    assert "CREATE TABLE health_checks" in result.stdout
+    assert "CREATE TABLE admin_audit_logs" in result.stdout
     assert "REVOKE INSERT" in result.stdout
     assert "unit-only" not in result.stdout + result.stderr
     (env_root / ".env.company").write_text("")

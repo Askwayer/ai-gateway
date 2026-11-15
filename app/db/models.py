@@ -1,7 +1,7 @@
-"""The three tables needed by the first non-streaming slice."""
+"""Five-table gateway schema; health history is structure-only in the admin slice."""
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.db.base import Base
 
@@ -133,4 +133,64 @@ sa.Index(
     postgresql_where=request_logs.c.outcome == "started",
 )
 
-REVISION = "0001_nonstream_slice"
+health_checks = sa.Table(
+    "health_checks",
+    metadata,
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("upstream_id", sa.String(64), nullable=False),
+    sa.Column("probe_kind", sa.String(32), nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("checked_at", sa.DateTime(timezone=True), nullable=False, server_default=now),
+    sa.Column("latency_ms", sa.Float, nullable=False),
+    sa.Column("http_status", sa.Integer),
+    sa.Column("error_code", sa.String(64)),
+    sa.Column("model", sa.String(255)),
+    sa.CheckConstraint("probe_kind IN ('reachability','inference')", name="probe_kind"),
+    sa.CheckConstraint("status IN ('healthy','degraded','unhealthy','skipped')", name="status"),
+    sa.CheckConstraint("latency_ms >= 0 AND latency_ms < 'Infinity'::float8", name="latency"),
+    sa.CheckConstraint(
+        "http_status IS NULL OR http_status BETWEEN 100 AND 599", name="http_status"
+    ),
+)
+sa.Index(
+    "ix_health_checks_upstream_time",
+    health_checks.c.upstream_id,
+    health_checks.c.checked_at,
+    health_checks.c.id,
+)
+admin_audit_logs = sa.Table(
+    "admin_audit_logs",
+    metadata,
+    sa.Column("id", UUID(as_uuid=True), primary_key=True),
+    sa.Column("actor", sa.String(32), nullable=False),
+    sa.Column("action", sa.String(64), nullable=False),
+    sa.Column("resource_type", sa.String(32), nullable=False),
+    sa.Column("resource_id", UUID(as_uuid=True), nullable=False),
+    sa.Column("request_id", UUID(as_uuid=True), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=now),
+    sa.Column("changes", JSONB, nullable=False),
+    sa.CheckConstraint("actor = 'admin'", name="actor"),
+    sa.CheckConstraint(
+        "(resource_type='project' AND action IN ('project.create','project.update')) OR (resource_type='key' AND action IN ('key.create','key.update'))",
+        name="action",
+    ),
+    sa.CheckConstraint("jsonb_typeof(changes) = 'object'", name="changes_object"),
+)
+sa.Index(
+    "ix_admin_audit_created", admin_audit_logs.c.created_at.desc(), admin_audit_logs.c.id.desc()
+)
+sa.Index(
+    "ix_admin_audit_action_created",
+    admin_audit_logs.c.action,
+    admin_audit_logs.c.created_at.desc(),
+    admin_audit_logs.c.id.desc(),
+)
+sa.Index(
+    "ix_admin_audit_resource_created",
+    admin_audit_logs.c.resource_id,
+    admin_audit_logs.c.created_at.desc(),
+    admin_audit_logs.c.id.desc(),
+)
+sa.Index("ix_projects_created", projects.c.created_at.desc(), projects.c.id.desc())
+
+REVISION = "0002_admin_management"

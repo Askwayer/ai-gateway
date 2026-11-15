@@ -24,26 +24,14 @@ from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 
 from app.accounting import parse_usage
+from app.admin import install_admin_routes
 from app.core.config import ConfigurationError, load_config
 from app.core.settings import Settings
 from app.db.repository import Identity, Repository, make_engine
+from app.errors import GatewayError
 from app.upstream_transport import GatewayHTTPTransport
 
 logger = logging.getLogger("ai_gateway")
-
-
-class GatewayError(Exception):
-    def __init__(
-        self,
-        status: int,
-        code: str,
-        source: str = "gateway",
-        extra: dict[str, Any] | None = None,
-        retry_after: str | None = None,
-    ):
-        self.status, self.code, self.source = status, code, source
-        self.extra = extra or {}
-        self.retry_after = retry_after
 
 
 _TOKEN = r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+"
@@ -171,7 +159,7 @@ def create_app(
     engine = None if repository is not None else make_engine(config)
     if repository is None:
         assert engine is not None
-        repository = Repository(engine)
+        repository = Repository(engine, cleanup_timeout=config.CLEANUP_TIMEOUT)
     repo = repository
     admission = Admission(config.GLOBAL_MAX_CONCURRENCY)
     auth_active = 0
@@ -249,6 +237,7 @@ def create_app(
             403: "permission_error",
             404: "invalid_request_error",
             405: "invalid_request_error",
+            409: "conflict_error",
             413: "invalid_request_error",
             429: "rate_limit_error",
             503: "service_unavailable_error",
@@ -345,7 +334,43 @@ def create_app(
             raise GatewayError(401, "invalid_api_key")
         return identity
 
-    async def read_body(request: Request) -> dict[str, Any]:
+    async def authenticate_admin(request: Request) -> None:
+        nonlocal auth_active
+        if stopping or not ready or time.monotonic() - ready_checked > config.DB_READY_STALE_AFTER:
+            raise GatewayError(503, "database_unavailable")
+        scheme, _, token = request.headers.get("authorization", "").partition(" ")
+        if scheme.lower() != "bearer" or not token or len(token) > 512 or not token.isascii():
+            raise GatewayError(401, "invalid_api_key")
+        if hmac.compare_digest(token, config.ADMIN_API_KEY.get_secret_value()):
+            return
+        if auth_active >= config.AUTH_DB_MAX_INFLIGHT:
+            raise GatewayError(503, "auth_capacity_exceeded")
+        auth_active += 1
+        try:
+            async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+                known = await repo.key_exists(hashlib.sha256(token.encode()).hexdigest())
+        except (SQLAlchemyError, TimeoutError):
+            raise GatewayError(503, "database_unavailable") from None
+        finally:
+            auth_active -= 1
+        raise GatewayError(
+            403 if known else 401, "permission_denied" if known else "invalid_api_key"
+        )
+
+    @app.get("/v1/models")
+    async def models(request: Request) -> dict[str, Any]:
+        if stopping or not ready or time.monotonic() - ready_checked > config.DB_READY_STALE_AFTER:
+            raise GatewayError(503, "database_unavailable")
+        await authenticate(request)
+        return {
+            "object": "list",
+            "data": [
+                {"id": model, "object": "model", "owned_by": "gateway"}
+                for model in config.ALLOWED_MODELS
+            ],
+        }
+
+    async def read_json(request: Request) -> Any:
         if not is_utf8_json(request.headers.getlist("content-type")):
             raise GatewayError(400, "invalid_request")
         data = bytearray()
@@ -358,6 +383,10 @@ def create_app(
             value = strict_json(data)
         except (ValueError, UnicodeError, TimeoutError):
             raise GatewayError(400, "invalid_request") from None
+        return value
+
+    async def read_body(request: Request) -> dict[str, Any]:
+        value = await read_json(request)
         if not isinstance(value, dict) or not isinstance(value.get("model"), str):
             raise GatewayError(400, "invalid_request")
         if value["model"] not in config.ALLOWED_MODELS:
@@ -602,4 +631,5 @@ def create_app(
             finally:
                 admission.release(identity)
 
+    install_admin_routes(app, config, repo, authenticate_admin, read_json)
     return app

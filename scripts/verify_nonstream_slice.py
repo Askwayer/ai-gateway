@@ -99,7 +99,14 @@ async def verify(args, report):
                 if "alembic_version" in tables
                 else None
             )
-            expected = {"projects", "api_keys", "request_logs", "alembic_version"}
+            expected = {
+                "projects",
+                "api_keys",
+                "request_logs",
+                "health_checks",
+                "admin_audit_logs",
+                "alembic_version",
+            }
             assert (not tables and revision is None) or (
                 tables == expected and revision == REVISION
             ), "unexpected existing schema; no migration executed"
@@ -139,7 +146,7 @@ async def verify(args, report):
         await owner.dispose()
 
     engine = make_engine(config)
-    repo = Repository(engine)
+    repo = Repository(engine, cleanup_timeout=config.CLEANUP_TIMEOUT)
     project_id, key_id = uuid4(), uuid4()
     key = secrets.token_urlsafe(32)
     fixture_created = False
