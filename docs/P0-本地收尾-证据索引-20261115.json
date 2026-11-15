@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "recorded_at_utc": "2026-11-15T06:23:39.105430+00:00",
+  "recorded_at_utc": "2026-11-15T08:39:47.336308+00:00",
   "classification": "project-internal distributable; no credentials; may contain internal addresses",
   "milestone_signoff": false,
   "artifacts": {
@@ -14,7 +14,7 @@
     "scripts/build_p0_handoff.py": "702c3c1cb902c12f6719f990db4b8b0b2be3fcdf6c68a037cbf16c6faa77546f",
     "p0/LOCAL_HANDOFF.md": "51209e0a2ee1002d14fea0811d188a4bf913cc62b6a2ee40ff0f292d7bd27765",
     "p0/company.env.example": "6f5b92d2c81637beaf199b1385fb1eaef1257165dd9f7fdb09f82c33eea804c5",
-    "p0/config-candidates.json": "97618ab2961e191376f6760809c2b8384b906fbbebf1c4df4bd7ea465627d98d",
+    "p0/config-candidates.json": "d57de27e4ca58d79ca035539592f118f9f83ba6da64d576dbe7935b6e08befcf",
     "p0/upstream/company-selection.json": "69c65002ea1e27f9feacd82761846b960530a107155b909c889c0f5e435aa20d",
     "p0/upstream/deepseek-probe-cases.json": "854c3a699572530c5338ccf1053f15a22995e7a77aa60f6e964fb79d82879ece",
     "p0/dependencies/README.md": "327ca66ce2b3b2992d3e8b982fa12722bfb6ab1ece4a5621ae59c4071bdf9715",
@@ -25,13 +25,13 @@
     "docs/P0-直连原型与现场补验.md": "87bddaa9123f61a8168afbfe80b637c0bd7bf2a027045d8860bb76443788f84b",
     "docs/P0-执行记录.md": "abf1ae12d0bc04e1567372a71e88bc3ad4faa42b8648b641be08fabb599bac31",
     "docs/P0-延期与P1例外记录.md": "4c030d11dcf4fd7a60c42746e6b13daa11cea6b604daf0aad1d7ea3671965d34",
-    "docs/P1-本地基座执行记录.md": "a6a64f25db9f142f36ab6a72a52608ab70b29cdaa2b856bfed68fbca18451824",
-    "docs/AI-Gateway-项目开发详细设计书-v1.6.md": "e2175f0dbe0fd2a946b875b9f3a5f2f22cab656a31863a61a9d3a069350b2639",
+    "docs/P1-本地基座执行记录.md": "dbf2b8a9b1377098d7961cb8eed1a76f31e5f5db8b6f2559a823873f9befd695",
+    "docs/AI-Gateway-项目开发详细设计书-v1.6.md": "5b7c65e2ce39cfa536fe264b8910d27d1e51a643fdf80220c52ba6494a38c84d",
     "docs/AI-Gateway-验收记录模板-v1.6.md": "93b4fd8d762d42bb632078249f16c5186033a553545a28556b7926f73244e4a3",
     "docs/AI-Gateway-开发执行计划-v1.1.md": "0f9f8258f5ff9bfe3aa9abf4fe01c4d353c87da4ab17a45a09ced575baf2eb5c",
     "docs/数据库环境与账号.md": "dadb8da4e3b720729ec6a89face4acd807feabe3aa9e3b9376a3158e2fd5dc0e",
     "docs/P0-数据库初始化记录-20261115.json": "1109060678e3b84b44713440beff9625388d16a7710fe95b753376f60f4dc984",
-    ".env.example": "7389ac21e09aeb3319b638cfe2db7bfefae7c6229ad39a81debbae2aab7899f1",
+    ".env.example": "ed8f8d0366bd9eaea0a08b438456c52cf083fc958b4ef81b76abdd952b316ea4",
     ".tools/p0-direct-echo-20261115.json": "e13ddec10450525ea98b1caf4efd55e9d8ba03f0da0535f08bf2e31244ab0762",
     ".tools/p0-company-reachability-20261115.json": "a21ad739ddc92949f20efdc958959ab81e78966a3f7fb50357ddbd4560ee9994",
     ".tools/p0-local-inputs-20261115.json": "837b597ac399b4c43e0292bfa1216138695d1d43a9c011ce71b6960c2334fefe",
@@ -129,10 +129,10 @@
   },
   "package": {
     "path": ".tools/p0-local-handoff-20261115-r2.tar.gz",
-    "sha256": "0ec8be5d7585bdeb0b43a44f7b2ff94d766d30694666fb32755315ecf377d943",
+    "sha256": "09045e06288bad41ab81c4662fd336e37d31b70e32ed896db5853625b4721fc4",
     "prefix": "p0-local-handoff-20261115-r2",
-    "bytes": 12506962
+    "bytes": 12508713
   },
-  "historical_previous_artifacts": ".tools/p0-handoff-history/20261115T062339109772Z",
+  "historical_previous_artifacts": ".tools/p0-handoff-history/20261115T083947340599Z",
   "historical_v1_package": ".tools/p0-local-handoff-20261115.tar.gz"
 }
