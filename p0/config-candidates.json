@@ -3,7 +3,7 @@
   "status": "candidate_only_not_frozen",
   "milestone_signoff": false,
   "design": "docs/AI-Gateway-项目开发详细设计书-v1.6.md",
-  "design_sha256": "5b7c65e2ce39cfa536fe264b8910d27d1e51a643fdf80220c52ba6494a38c84d",
+  "design_sha256": "8d3ee6e1d913effefd87f7634d83dab963358a5bffb2d83ec13ab1eaad452887",
   "selection_sha256": "69c65002ea1e27f9feacd82761846b960530a107155b909c889c0f5e435aa20d",
   "production_config_loader": "P1 local model/CLI implemented in app.core.config; company required inputs and deployment remain pending",
   "default_environment": "development",
