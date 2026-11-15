@@ -8,16 +8,16 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-from app.db.base import Base
+from app.db.models import REVISION, metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_no_business_tables_or_revisions():
-    assert not Base.metadata.tables
+def test_only_approved_slice_tables_and_revision():
+    assert set(metadata.tables) == {"projects", "api_keys", "request_logs"}
     scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
-    assert scripts.get_heads() == []
-    assert list(scripts.walk_revisions()) == []
+    assert scripts.get_heads() == [REVISION]
+    assert len(list(scripts.walk_revisions())) == 1
 
 
 def test_offline_empty_migration_and_company_no_fallback(env_root):
@@ -41,7 +41,9 @@ def test_offline_empty_migration_and_company_no_fallback(env_root):
         command, env=process, cwd=ROOT, capture_output=True, text=True, timeout=10
     )
     assert result.returncode == 0, result.stderr
-    assert "CREATE TABLE" not in result.stdout
+    assert "CREATE TABLE projects" in result.stdout
+    assert "CREATE TABLE health_checks" not in result.stdout
+    assert "REVOKE INSERT" in result.stdout
     assert "unit-only" not in result.stdout + result.stderr
     (env_root / ".env.company").write_text("")
     process.update(APP_ENV="company", APP_ENV_FILE=str(env_root / ".env.company"))
