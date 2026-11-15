@@ -28,6 +28,7 @@ from app.admin import install_admin_routes
 from app.core.config import ConfigurationError, load_config
 from app.core.settings import Settings
 from app.db.repository import Identity, Repository, make_engine
+from app.db.runtime import database_timeout
 from app.errors import GatewayError
 from app.upstream_transport import GatewayHTTPTransport
 
@@ -167,14 +168,21 @@ def create_app(
     ready_checked = 0.0
     stopping = False
     run_id = uuid4()
+    background_db_active = 0
 
     async def refresh_ready() -> None:
-        nonlocal ready, ready_checked
+        nonlocal ready, ready_checked, background_db_active
+        if background_db_active >= config.BACKGROUND_DB_MAX_INFLIGHT:
+            ready = False
+            return
+        background_db_active += 1
         try:
-            async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+            async with database_timeout(config.DB_OPERATION_TIMEOUT):
                 ready = await repo.ready()
         except (SQLAlchemyError, TimeoutError):
             ready = False
+        finally:
+            background_db_active -= 1
         ready_checked = time.monotonic()
 
     async def readiness_loop() -> None:
@@ -227,6 +235,9 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.admission = admission
+    app.state.background_db_inflight = lambda: background_db_active
+    app.state.refresh_ready = refresh_ready
+    app.state.db_pool_observer = getattr(repo, "pool_observer", None)
     app.state.accounting_write_failures = 0
     app.state.upstream_close_failures = 0
 
@@ -324,7 +335,7 @@ def create_app(
             raise GatewayError(503, "auth_capacity_exceeded")
         auth_active += 1
         try:
-            async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+            async with database_timeout(config.DB_OPERATION_TIMEOUT):
                 identity = await repo.authenticate(hashlib.sha256(token.encode()).hexdigest())
         except (SQLAlchemyError, TimeoutError):
             raise GatewayError(503, "database_unavailable") from None
@@ -347,7 +358,7 @@ def create_app(
             raise GatewayError(503, "auth_capacity_exceeded")
         auth_active += 1
         try:
-            async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+            async with database_timeout(config.DB_OPERATION_TIMEOUT):
                 known = await repo.key_exists(hashlib.sha256(token.encode()).hexdigest())
         except (SQLAlchemyError, TimeoutError):
             raise GatewayError(503, "database_unavailable") from None
@@ -434,8 +445,8 @@ def create_app(
                 if time.monotonic() >= deadline:
                     break
                 try:
-                    async with asyncio.timeout_at(
-                        min(deadline, time.monotonic() + config.SETTLEMENT_ATTEMPT_TIMEOUT)
+                    async with database_timeout(
+                        config.SETTLEMENT_ATTEMPT_TIMEOUT, deadline=deadline
                     ):
                         await repo.settle(request_id, {**values, "settlement_attempts": attempt})
                     settled = True
@@ -478,7 +489,7 @@ def create_app(
                 raise GatewayError(503, "auth_capacity_exceeded")
             auth_active += 1
             try:
-                async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+                async with database_timeout(config.DB_OPERATION_TIMEOUT):
                     await repo.register(
                         {
                             **base,
@@ -514,7 +525,7 @@ def create_app(
                 # Conditional cleanup is safe even if an INSERT acknowledgement was lost.
                 registered = True
                 try:
-                    async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+                    async with database_timeout(config.DB_OPERATION_TIMEOUT):
                         await repo.register(
                             {
                                 **base,

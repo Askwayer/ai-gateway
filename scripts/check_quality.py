@@ -18,6 +18,7 @@ def main() -> int:
         "scripts/check_development.py",
         "scripts/verify_nonstream_slice.py",
         "scripts/verify_admin_slice.py",
+        "scripts/verify_database_foundation.py",
     ]
     commands = [
         ["scripts/check_repository.py"],

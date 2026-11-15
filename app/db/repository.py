@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_en
 
 from app.core.settings import Settings
 from app.db.models import REVISION, admin_audit_logs, api_keys, projects, request_logs
+from app.db.runtime import DB_DEADLINE, PoolObserver, acquire_connection
 
 
 @dataclass(frozen=True)
@@ -44,9 +45,10 @@ class Repository:
     def __init__(self, engine: AsyncEngine, *, cleanup_timeout: float):
         self.engine = engine
         self.cleanup_timeout = cleanup_timeout
+        self.pool_observer = PoolObserver(engine)
 
     async def ready(self) -> bool:
-        async with self.engine.connect() as connection:
+        async with self.connection() as connection:
             revision = await connection.scalar(sa.text("SELECT version_num FROM alembic_version"))
             tables = await connection.scalar(
                 sa.text(
@@ -75,16 +77,16 @@ class Repository:
                 ),
             )
         )
-        async with self.engine.connect() as connection:
+        async with self.connection() as connection:
             row = (await connection.execute(query)).one_or_none()
         return None if row is None else Identity(*row)
 
     async def register(self, values: dict[str, Any]) -> None:
-        async with self.engine.begin() as connection:
+        async with self.connection(write=True) as connection:
             await connection.execute(request_logs.insert().values(**values))
 
     async def mark_upstream(self, request_id: UUID) -> None:
-        async with self.engine.begin() as connection:
+        async with self.connection(write=True) as connection:
             await connection.execute(
                 request_logs.update()
                 .where(
@@ -98,7 +100,7 @@ class Repository:
             )
 
     async def settle(self, request_id: UUID, values: dict[str, Any]) -> bool:
-        async with self.engine.begin() as connection:
+        async with self.connection(write=True) as connection:
             result = await connection.execute(
                 request_logs.update()
                 .where(
@@ -115,11 +117,11 @@ class Repository:
             return result.scalar_one_or_none() is not None
 
     @asynccontextmanager
-    async def admin_connection(self, *, write: bool = False) -> AsyncIterator[AsyncConnection]:
+    async def connection(self, *, write: bool = False) -> AsyncIterator[AsyncConnection]:
         # Do not use AsyncConnection.__aexit__: it waits for shielded close even
         # after cancellation. Own the connection explicitly and retain the pool
         # proxy, including when SQLAlchemy clears its reference during failure.
-        connection = await self.engine.connect()
+        connection = await acquire_connection(self.engine, self.cleanup_timeout)
         sync_connection = connection.sync_connection
         assert sync_connection is not None
         pooled = sync_connection.connection
@@ -134,40 +136,64 @@ class Repository:
                 sync_connection.invalidate()
                 sync_connection.close()
 
+        # The caller's SQL/settlement deadline also aborts the physical socket.
+        # This prevents driver-owned cancellation cleanup from extending it.
+        caller_deadline = DB_DEADLINE.get()
+        operation_watchdog = (
+            asyncio.get_running_loop().call_at(caller_deadline, discard)
+            if caller_deadline is not None
+            else None
+        )
         try:
-            yield connection
-            if write:
-                await connection.commit()
-        except asyncio.CancelledError:
-            # Cancellation during SQL/commit must propagate, even if a graceful
-            # rollback would also time out. Never retry an uncertain commit.
-            discard()
-            raise
-        finally:
-            if not connection.closed:
-                # One cleanup budget, also during exception unwinding. Abort
-                # the socket even when driver cancellation cleanup shields IO.
-                # No detached close task and no pool-wide disposal.
-                expired = False
+            try:
+                yield connection
+                if write:
+                    await connection.commit()
+            except asyncio.CancelledError:
+                # Cancellation during SQL/commit must propagate, even if a graceful
+                # rollback would also time out. Never retry an uncertain commit.
+                discard()
+                raise
+            finally:
+                if not connection.closed:
+                    # One cleanup budget, also during exception unwinding. Abort
+                    # the socket even when driver cancellation cleanup shields IO.
+                    # No detached close task and no pool-wide disposal.
+                    expired = False
 
-                def expire() -> None:
-                    nonlocal expired
-                    expired = True
-                    discard()
+                    def expire() -> None:
+                        nonlocal expired
+                        expired = True
+                        discard()
 
-                loop = asyncio.get_running_loop()
-                deadline = loop.time() + self.cleanup_timeout
-                watchdog = loop.call_at(deadline, expire)
-                try:
-                    async with asyncio.timeout_at(deadline):
-                        await connection.close()
-                    if expired:
+                    loop = asyncio.get_running_loop()
+                    deadline = loop.time() + self.cleanup_timeout
+                    operation_deadline = DB_DEADLINE.get()
+                    if operation_deadline is not None:
+                        deadline = min(deadline, operation_deadline)
+                    if deadline <= loop.time():
+                        discard()
                         raise TimeoutError
-                except BaseException:
-                    discard()
-                    raise
-                finally:
-                    watchdog.cancel()
+                    watchdog = loop.call_at(deadline, expire)
+                    try:
+                        async with asyncio.timeout_at(deadline):
+                            await connection.close()
+                        if expired:
+                            raise TimeoutError
+                    except BaseException:
+                        discard()
+                        raise
+                    finally:
+                        watchdog.cancel()
+        finally:
+            if operation_watchdog is not None:
+                operation_watchdog.cancel()
+
+    @asynccontextmanager
+    async def admin_connection(self, *, write: bool = False) -> AsyncIterator[AsyncConnection]:
+        # Preserve the management instrumentation point; all paths share cleanup.
+        async with self.connection(write=write) as connection:
+            yield connection
 
     async def key_exists(self, key_hash: str) -> bool:
         async with self.admin_connection() as connection:

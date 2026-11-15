@@ -1,6 +1,5 @@
 """Bounded management routes; every write is coupled to its audit transaction."""
 
-import asyncio
 import base64
 import hashlib
 import json
@@ -28,6 +27,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.settings import Settings
 from app.db.repository import ProjectConflict, Repository, ResourceNotFound
+from app.db.runtime import database_timeout
 from app.errors import GatewayError
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
@@ -125,7 +125,7 @@ def install_admin_routes(
             raise GatewayError(503, "admin_capacity_exceeded")
         app.state.admin_db_active += 1
         try:
-            async with asyncio.timeout(config.DB_OPERATION_TIMEOUT):
+            async with database_timeout(config.DB_OPERATION_TIMEOUT):
                 yield
         except ResourceNotFound:
             raise GatewayError(404, "not_found") from None
