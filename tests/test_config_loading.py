@@ -81,6 +81,22 @@ def test_selected_authenticated_upstream_requires_key(env_root):
         load_config(root=env_root, environ={"UPSTREAM_API_KEY": ""})
 
 
+def test_placeholder_values_fail_without_echoing_value(env_root):
+    path = env_root / ".env"
+    text = path.read_text()
+    text = text.replace(
+        'ALLOWED_MODELS=["deepseek-v4-flash"]', 'ALLOWED_MODELS=["P0必填"]'
+    ).replace("INFERENCE_PROBE_MODEL=deepseek-v4-flash", "INFERENCE_PROBE_MODEL=P0必填")
+    path.write_text(text)
+
+    with pytest.raises(ConfigurationError) as caught:
+        load_config(root=env_root, environ={})
+
+    message = str(caught.value)
+    assert "P0必填" not in message
+    assert "ALLOWED_MODELS" in message or "INFERENCE_PROBE_MODEL" in message
+
+
 @pytest.mark.parametrize(
     "contents",
     [

@@ -93,6 +93,28 @@ def test_invalid_contract_is_rejected(config_values, changes):
         Settings(**(config_values | changes))
 
 
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"ALLOWED_MODELS": ("P0必填",)},
+        {"ALLOWED_MODELS": ("P0 必填",)},
+        {"ALLOWED_MODELS": ("必填模型列表",)},
+        {"ALLOWED_MODELS": ("P0必填",), "INFERENCE_PROBE_MODEL": "P0必填"},
+        {"INFERENCE_PROBE_PROMPT": "P0必填"},
+        {"UPSTREAM_API_KEY": "空"},
+        {"ADMIN_API_KEY": "必填高熵随机值"},
+        {"UPSTREAM_BASE_URL": "必填内网固定地址"},
+        {"UPSTREAM_HEALTH_PATH": "P0必填"},
+        {"UPSTREAM_HEALTH_PATH": "P0 必填"},
+        {"UPSTREAM_CA_BUNDLE": "系统信任库"},
+        {"DATABASE_URL": "postgresql+asyncpg://..."},
+    ],
+)
+def test_placeholder_values_are_rejected(config_values, changes):
+    with pytest.raises(ValidationError):
+        Settings(**(config_values | changes))
+
+
 def test_disabled_probes_still_validate_supplied_values(config_values):
     disabled = config_values | {
         "HEALTH_REACHABILITY_ENABLED": False,

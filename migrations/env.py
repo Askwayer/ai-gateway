@@ -4,11 +4,10 @@ import asyncio
 
 from alembic import context
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import NullPool
 
 from app.core.config import ConfigurationError, load_migration_config
 from app.db.base import Base
+from app.db.migration_guard import run_online_migration
 
 
 def configure(connection: Connection) -> None:
@@ -18,29 +17,7 @@ def configure(connection: Connection) -> None:
 
 
 async def online() -> None:
-    settings = load_migration_config()
-    engine = create_async_engine(
-        settings.url.get_secret_value(),
-        poolclass=NullPool,
-        echo=False,
-        hide_parameters=True,
-        connect_args={"timeout": 5, "command_timeout": 5},
-    )
-    try:
-        async with engine.connect() as connection:
-            # Catalog check after actual login protects against a misleading connection path.
-            from sqlalchemy import text
-
-            row = (await connection.execute(text("SELECT current_database(), current_user"))).one()
-            if tuple(row) != ("ai_gateway_test", "gateway_test_migrator"):
-                raise ConfigurationError(
-                    "actual migration connection is not the approved test identity"
-                )
-            # End the read-only identity check transaction before Alembic controls its own.
-            await connection.rollback()
-            await connection.run_sync(configure)
-    finally:
-        await engine.dispose()
+    await run_online_migration(configure)
 
 
 def run() -> None:

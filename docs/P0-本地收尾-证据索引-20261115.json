@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "recorded_at_utc": "2026-11-15T05:12:11.660312+00:00",
+  "recorded_at_utc": "2026-11-15T06:23:39.105430+00:00",
   "classification": "project-internal distributable; no credentials; may contain internal addresses",
   "milestone_signoff": false,
   "artifacts": {
@@ -25,7 +25,7 @@
     "docs/P0-直连原型与现场补验.md": "87bddaa9123f61a8168afbfe80b637c0bd7bf2a027045d8860bb76443788f84b",
     "docs/P0-执行记录.md": "abf1ae12d0bc04e1567372a71e88bc3ad4faa42b8648b641be08fabb599bac31",
     "docs/P0-延期与P1例外记录.md": "4c030d11dcf4fd7a60c42746e6b13daa11cea6b604daf0aad1d7ea3671965d34",
-    "docs/P1-本地基座执行记录.md": "6d62cf515bf42c4eec7593bf46d67b9818fd978587a02b92dade91ad37b27145",
+    "docs/P1-本地基座执行记录.md": "a6a64f25db9f142f36ab6a72a52608ab70b29cdaa2b856bfed68fbca18451824",
     "docs/AI-Gateway-项目开发详细设计书-v1.6.md": "e2175f0dbe0fd2a946b875b9f3a5f2f22cab656a31863a61a9d3a069350b2639",
     "docs/AI-Gateway-验收记录模板-v1.6.md": "93b4fd8d762d42bb632078249f16c5186033a553545a28556b7926f73244e4a3",
     "docs/AI-Gateway-开发执行计划-v1.1.md": "0f9f8258f5ff9bfe3aa9abf4fe01c4d353c87da4ab17a45a09ced575baf2eb5c",
@@ -129,10 +129,10 @@
   },
   "package": {
     "path": ".tools/p0-local-handoff-20261115-r2.tar.gz",
-    "sha256": "f3a6d3a5532e78bfecf5ef45dfdf12be6d61f3e94eeabb73a265a01b4e974329",
+    "sha256": "0ec8be5d7585bdeb0b43a44f7b2ff94d766d30694666fb32755315ecf377d943",
     "prefix": "p0-local-handoff-20261115-r2",
-    "bytes": 12506216
+    "bytes": 12506962
   },
-  "historical_previous_artifacts": ".tools/p0-handoff-history/20261115T051211664713Z",
+  "historical_previous_artifacts": ".tools/p0-handoff-history/20261115T062339109772Z",
   "historical_v1_package": ".tools/p0-local-handoff-20261115.tar.gz"
 }

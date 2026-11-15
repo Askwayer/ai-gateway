@@ -16,15 +16,35 @@ NonnegativeInt = Annotated[int, Field(strict=True, ge=0)]
 PositiveNumber = Annotated[float, Field(strict=True, gt=0, allow_inf_nan=False)]
 NonnegativeNumber = Annotated[float, Field(strict=True, ge=0, allow_inf_nan=False)]
 JSON_FIELDS = frozenset({"ALLOWED_MODELS", "ALLOWED_TIMEZONES", "TRUSTED_PROXY_CIDRS"})
+# Design §11.1.1: P0/design placeholder literals must never load as runtime configuration.
+PLACEHOLDER_MARKERS = frozenset(
+    {
+        "p0必填",
+        "p0 必填",
+        "必填模型列表",
+        "必填高熵随机值",
+        "必填内网固定地址",
+        "系统信任库",
+        "空",
+        "postgresql+asyncpg://...",
+    }
+)
 
 
 def has_control(value: str) -> bool:
     return any(unicodedata.category(char).startswith("C") for char in value)
 
 
+def is_placeholder(value: str) -> bool:
+    """Reject P0/design placeholder literals in runtime configuration."""
+    return " ".join(value.split()).casefold() in PLACEHOLDER_MARKERS
+
+
 def database_parts(value: str) -> tuple[str, int, str, str]:
     """Validate without echoing the credential-bearing URL in any error."""
     try:
+        if is_placeholder(value):
+            raise ValueError
         url = urlsplit(value)
         port = url.port
         if (
@@ -157,21 +177,30 @@ class Settings(BaseModel):
     @classmethod
     def valid_admin_secret(cls, value: SecretStr) -> SecretStr:
         raw = value.get_secret_value()
-        if len(raw) < 43 or not raw.isascii() or any(c.isspace() for c in raw) or has_control(raw):
+        if (
+            is_placeholder(raw)
+            or len(raw) < 43
+            or not raw.isascii()
+            or any(c.isspace() for c in raw)
+            or has_control(raw)
+        ):
             raise ValueError("ADMIN_API_KEY must be at least 43 non-whitespace ASCII characters")
         return value
 
     @field_validator("UPSTREAM_API_KEY")
     @classmethod
     def valid_upstream_secret(cls, value: SecretStr) -> SecretStr:
-        if has_control(value.get_secret_value()):
-            raise ValueError("UPSTREAM_API_KEY must not contain control characters")
+        raw = value.get_secret_value()
+        if is_placeholder(raw) or has_control(raw):
+            raise ValueError("UPSTREAM_API_KEY must not contain placeholders or control characters")
         return value
 
     @field_validator("UPSTREAM_BASE_URL")
     @classmethod
     def valid_upstream_url(cls, value: str) -> str:
         try:
+            if is_placeholder(value):
+                raise ValueError
             url = urlsplit(value)
             if (
                 url.scheme not in {"http", "https"}
@@ -195,7 +224,8 @@ class Settings(BaseModel):
     def valid_health_path(cls, value: str) -> str:
         url = urlsplit(value)
         if value and (
-            not value.startswith("/")
+            is_placeholder(value)
+            or not value.startswith("/")
             or value.startswith("//")
             or url.netloc
             or url.query
@@ -215,7 +245,9 @@ class Settings(BaseModel):
         if (
             not value
             or len(set(value)) != len(value)
-            or any(not model.strip() or has_control(model) for model in value)
+            or any(
+                is_placeholder(model) or not model.strip() or has_control(model) for model in value
+            )
         ):
             raise ValueError("model allowlist must be nonempty and unique with valid text")
         return value
@@ -223,13 +255,15 @@ class Settings(BaseModel):
     @field_validator("INFERENCE_PROBE_MODEL", "INFERENCE_PROBE_PROMPT")
     @classmethod
     def valid_probe_text(cls, value: str) -> str:
-        if has_control(value):
-            raise ValueError("probe text contains control characters")
+        if is_placeholder(value) or has_control(value):
+            raise ValueError("probe text contains placeholders or control characters")
         return value
 
     @field_validator("UPSTREAM_CA_BUNDLE")
     @classmethod
     def valid_ca(cls, value: str) -> str:
+        if is_placeholder(value):
+            raise ValueError("UPSTREAM_CA_BUNDLE must not be a placeholder")
         if value != "system_trust_store":
             try:
                 if not Path(value).is_file():

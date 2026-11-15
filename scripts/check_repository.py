@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check local Git exclusions and scan distributable text without printing secrets."""
+"""Check local Git exclusions and scan staged/working-tree content without printing secrets."""
 
 import os
 import re
@@ -45,6 +45,39 @@ def main() -> int:
                 secrets.add(value)
                 if "DATABASE_URL" in key and (password := urlsplit(value).password):
                     secrets.add(unquote(password))
+
+    def credential_like(content: bytes) -> bool:
+        return (
+            any(secret.encode() in content for secret in secrets)
+            or re.search(rb"\bsk-[A-Za-z0-9_-]{24,}\b", content) is not None
+        )
+
+    # A staged blob can differ from the working tree (for example, a secret staged and
+    # then removed locally). Scan the index objects themselves, not only the filesystem.
+    staged = subprocess.check_output(["git", "ls-files", "--stage", "-z"], cwd=ROOT)
+    for record in staged.decode(errors="surrogateescape").split("\0"):
+        if not record:
+            continue
+        metadata, separator, name = record.partition("\t")
+        fields = metadata.split()
+        if not separator or len(fields) != 3:
+            print("FAIL: malformed staged index entry")
+            return 1
+        mode, object_id, _stage = fields
+        if mode == "120000":
+            print("FAIL: review staged symlink before including it:", name)
+            return 1
+        if mode == "160000" or set(object_id) == {"0"}:
+            continue
+        try:
+            content = subprocess.check_output(["git", "cat-file", "blob", object_id], cwd=ROOT)
+        except subprocess.CalledProcessError:
+            print("FAIL: cannot read staged object:", name)
+            return 1
+        if credential_like(content):
+            print("FAIL: credential-like material in staged file:", name)
+            return 1
+
     paths = (
         subprocess.check_output(
             ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT
@@ -60,9 +93,7 @@ def main() -> int:
         if not path.is_file():
             continue
         content = path.read_bytes()
-        if any(secret.encode() in content for secret in secrets) or re.search(
-            rb"\bsk-[A-Za-z0-9_-]{24,}\b", content
-        ):
+        if credential_like(content):
             print("FAIL: credential-like material in distributable file:", name)
             return 1
     print("PASS: Git exclusions and distributable-file secret scan.")
